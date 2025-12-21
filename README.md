@@ -19,7 +19,7 @@ These scripts are **not part of the official Excalidraw distribution**.
 
 ## 🔗 My Script Library
 
-1. [Linear Calendar Generator]([https://youtu.be/j64YOie4bIw](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/linear-calendar-generator))
+1. [Linear Calendar Generator]([https://youtu.be/j64YOie4bIw](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/linear-calendar-generator)
 
 
 ## 🔗 Official Script Library
