@@ -22,8 +22,6 @@ If no rectangles are selected, the default color schema will be used (white and 
 ```javascript
 */
 
-ea.reset();
-
 // -------------------------------------
 // Constants initiation
 // -------------------------------------
