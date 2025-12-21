@@ -17,6 +17,11 @@ The scripts in this repo are **custom-made by me** to extend, automate, or enhan
 
 These scripts are **not part of the official Excalidraw distribution**.
 
+## 🔗 My Script Library
+
+1. [Linear Calendar Generator](https://youtu.be/j64YOie4bIw)
+
+
 ## 🔗 Official Script Library
 
 The official and community-maintained Excalidraw scripts can be found here:
