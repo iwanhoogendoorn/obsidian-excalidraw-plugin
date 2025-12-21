@@ -1,8 +1,8 @@
-# Linear Calendar Generator
+# Linear Calendar Generator (Obsidian Excalidraw Script)
 
-Generate beautiful horizontal year calendars directly in Excalidraw with days flowing left to right and months arranged as rows.
+In [https://youtu.be/j64YOie4bIw?si=qhlY_uTogFSPdjQM this video] Nick Milo explains the benefit of using a Linear Calendar to plan for your year.
 
-![Linear Calendar Preview](https://raw.githubusercontent.com/zsviczian/obsidian-excalidraw-plugin/master/ea-scripts/Linear%20Calendar%20Generator/Linear%20Calendar%20Generator.svg)
+This Obsidian Excalidraw Script will generate a beautiful horizontal year calendar directly in Excalidraw with days flowing left to right and months arranged as rows.
 
 ## Features
 
