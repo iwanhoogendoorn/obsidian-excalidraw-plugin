@@ -8,7 +8,7 @@ In [this video](https://youtu.be/j64YOie4bIw), Nick Milo explains the benefits o
 
 This Obsidian Excalidraw Script will generate a beautiful horizontal year calendar directly in Excalidraw with days flowing left to right and months arranged as rows.
 
-![Screenshot](ea-scripts/linear-calendar-generator/screenshot.jpg)
+![Screenshot](screenshot.jpg)
 
 ## Features
 
