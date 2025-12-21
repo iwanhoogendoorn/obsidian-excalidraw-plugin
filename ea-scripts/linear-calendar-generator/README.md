@@ -1,5 +1,9 @@
 # Linear Calendar Generator (Obsidian Excalidraw Script)
 
+![Obsidian](https://img.shields.io/badge/Obsidian-483699?style=for-the-badge\&logo=obsidian\&logoColor=white)
+![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?style=for-the-badge\&logo=excalidraw\&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge\&logo=javascript\&logoColor=000000)
+
 In [this video](https://youtu.be/j64YOie4bIw), Nick Milo explains the benefits of using a **Linear Calendar** to plan your year.
 
 This Obsidian Excalidraw Script will generate a beautiful horizontal year calendar directly in Excalidraw with days flowing left to right and months arranged as rows.
