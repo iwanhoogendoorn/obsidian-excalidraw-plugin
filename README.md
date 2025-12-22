@@ -56,5 +56,3 @@ This repository is intended for:
 ## 📄 License
 
 Unless stated otherwise, scripts in this repository are shared for educational and personal use.
-
-Just say the word.
