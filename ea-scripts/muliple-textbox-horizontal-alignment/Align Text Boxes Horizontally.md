@@ -7,10 +7,6 @@ Select multiple text elements, then choose an alignment option:
 - Bottom: Align all text boxes to the bottommost element's position
 - First Selected: Align all text boxes to the first selected element's position
 
-See documentation for more details:
-TBD
-
-
 ```javascript
 */
 
