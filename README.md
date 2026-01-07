@@ -20,6 +20,7 @@ These scripts are **not part of the official Excalidraw distribution**.
 ## 🔗 My Script Library
 
 1. **[Linear Calendar Generator](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/linear-calendar-generator)**
+2. **[Align Text Boxes Horizontally](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/muliple-textbox-horizontal-alignment)**
 
 ## 🔗 Official Script Library
 
