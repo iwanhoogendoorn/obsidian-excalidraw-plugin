@@ -2,6 +2,8 @@
 
 An Obsidian Excalidraw script that generates customizable tables with a clean grid layout.
 
+![Video](video.gif)
+
 ## Features
 
 - **Custom dimensions** - Specify the number of rows and columns
