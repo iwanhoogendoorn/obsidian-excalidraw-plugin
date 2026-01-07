@@ -6,7 +6,7 @@
 
 This Obsidian Excalidraw Script aligns multiple text boxes onto the same horizontal line. Perfect for creating clean, organized diagrams, flowcharts, and visual notes where text elements need to be precisely aligned.
 
-![Screenshot](screenshot.jpg)
+![Video](video.gif)
 
 ## Features
 
