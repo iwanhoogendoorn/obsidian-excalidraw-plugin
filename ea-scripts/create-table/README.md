@@ -59,10 +59,6 @@ The table is created with:
 - After creation, the table is grouped - double-click to edit individual cells
 - Use Excalidraw's styling tools to change colors after creation
 
-## Related Scripts
-
-- `Align Text Boxes Horizontally.md` - Align multiple text elements on the same horizontal line
-
 ## License
 
 Free to use and modify.
