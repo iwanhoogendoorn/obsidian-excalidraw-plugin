@@ -58,5 +58,5 @@ The script calculates the bounding box of all selected text elements and reposit
 
 ## License
 
-MIT License — feel free to modify and share!
+MIT License
 
