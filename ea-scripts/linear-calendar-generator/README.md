@@ -53,3 +53,6 @@ If no rectangles are selected, the default color scheme is used:
 
 Download the script and place it in your Excalidraw scripts folder, or install it directly from the Excalidraw script library.
 
+## License
+
+MIT License
