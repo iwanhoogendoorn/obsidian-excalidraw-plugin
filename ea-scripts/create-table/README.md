@@ -61,5 +61,5 @@ The table is created with:
 
 ## License
 
-Free to use and modify.
+MIT License
 
