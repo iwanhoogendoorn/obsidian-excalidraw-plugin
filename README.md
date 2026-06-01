@@ -23,6 +23,7 @@ These scripts are **not part of the official Excalidraw distribution**.
 2. **[Align Text Boxes Horizontally](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/muliple-textbox-horizontal-alignment)**
 3. **[Create Table](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/create-table)**
 4. **[Create Table V2](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/create-table-v2)**
+5. **[Color Scheme Manager](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/color-scheme-manager)**
 
 
 ## 🔗 Official Script Library
