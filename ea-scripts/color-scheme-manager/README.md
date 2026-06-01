@@ -2,7 +2,7 @@
 
 An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/Fill** colour palettes of the active drawing between named, categorized themes — on the fly, from a docked side panel. Comes with a large built-in library (Cloud Providers, Code Editors, Tech Brands, Design Systems, and more) and lets you create or import your own.
 
-![icon](Color%20Scheme%20Manager.svg)
+![Video](Color%20Scheme%20Manager.gif)
 
 ## Features
 
