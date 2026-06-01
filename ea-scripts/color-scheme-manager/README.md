@@ -74,6 +74,7 @@ An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/
 | **Save selection** | Capture the stroke/fill of the currently selected element as a new scheme |
 | **Load all → picker** | Load every saved scheme's colours into the picker at once |
 | **Reset picker** | Restore Excalidraw's default palette |
+| 🎚️ (per row) | **Customize picker** — hand-pick the exact swatches, order, and top-picks |
 | ✎ (per row) | Rename **and/or** change the scheme's category |
 | 🗑 (per row) | Delete the scheme (asks for confirmation) |
 | `↺ Default` row | Reset the picker to Excalidraw defaults |
@@ -129,6 +130,24 @@ EBEEF3 C2C9D6 CDD3DE D6DBE5 B9C2D0
 TOPPICKS_STROKE: black 5E81AC BF616A A3BE8C EBCB8B
 TOPPICKS_FILL: transparent E5E9F0 F4C7C3 CFE8CF F7ECC9
 ```
+
+## Customizing the picker
+
+If you don't want *all* of a scheme's colours loaded, or want a different order than the auto-generated one, click the **🎚️** button on a scheme row to open the **Customize picker** editor. It works on any scheme (built-in or your own) and edits four lists:
+
+- **Stroke grid** and **Fill grid** — up to 15 swatches each (3 rows × 5).
+- **Stroke top-picks** and **Fill top-picks** — the 5 quick swatches shown before the grid opens.
+
+In each list you can:
+
+- **+ Add colour** via Excalidraw's native picker,
+- **click a swatch** to change it,
+- **↑ / ↓** to reorder,
+- **✕** to remove.
+
+A live preview strip shows each list as you edit. **Save** stores the exact spec on the scheme (so applying it loads precisely those colours, in that order); **Reset to auto** discards it and returns to the generated palette. The canvas background always stays white.
+
+> Tip: the labelled **Import** format (Option B above) writes the same spec — the editor is just the visual way to do it.
 
 ## Categories
 

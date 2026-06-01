@@ -449,24 +449,31 @@ const lightTint = (c) => {
 // Only three cells are fixed anchors (transparent, black, white) — every other
 // swatch is theme-derived, so the bulk of the grid changes per theme. Canvas
 // background stays pure white.
-function buildThemePalette(accents) {
-  const flat = [
-    "transparent",          // q — the only always-available "no colour"
-    accents[0],             // w
-    accents[1],             // e
-    accents[2],             // r
-    accents[3],             // t
-    accents[4],             // a
-    accents[5],             // s
-    accents[6],             // d
-    accents[7],             // f
-    accents[8],             // g
-    accents[9],             // z
-    lightTint(accents[0]),  // x — light tint of the primary
-    darken(accents[0]),     // c — dark shade of the primary
-    "black",                // v — fixed anchor
-    "white",                // b — fixed anchor
+// The 15 base swatches a theme produces (transparent + 10 accents + a light
+// tint & dark shade of the primary + black + white). Used by both the palette
+// builder and the picker editor (to pre-fill).
+function themeFlat(accents) {
+  return [
+    "transparent",          // the only always-available "no colour"
+    accents[0],
+    accents[1],
+    accents[2],
+    accents[3],
+    accents[4],
+    accents[5],
+    accents[6],
+    accents[7],
+    accents[8],
+    accents[9],
+    lightTint(accents[0]),  // light tint of the primary
+    darken(accents[0]),     // dark shade of the primary
+    "black",                // fixed anchor
+    "white",                // fixed anchor
   ];
+}
+
+function buildThemePalette(accents) {
+  const flat = themeFlat(accents);
   const WHITE = "#ffffff";
   return {
     elementStroke:     flat.map((c) => getShades(c, "stroke")),
@@ -503,6 +510,29 @@ function buildSchemePalette(scheme) {
   if (scheme.picker && (scheme.picker.stroke || scheme.picker.fill)) return buildExplicitPalette(scheme.picker);
   if (scheme.accents) return buildThemePalette(scheme.accents);
   return paletteForScheme(scheme);
+}
+
+// The base swatch lists currently driving a scheme's picker — used to pre-fill
+// the Customize editor (from an explicit spec, a theme, or a simple scheme).
+function effectiveBases(scheme) {
+  if (scheme.picker && (scheme.picker.stroke || scheme.picker.fill)) {
+    return {
+      stroke: (scheme.picker.stroke || []).slice(),
+      fill: (scheme.picker.fill || []).slice(),
+      topStroke: (scheme.picker.topStroke || []).slice(),
+      topFill: (scheme.picker.topFill || []).slice(),
+    };
+  }
+  if (scheme.accents) {
+    const flat = themeFlat(scheme.accents);
+    return { stroke: flat.slice(), fill: flat.slice(), topStroke: [], topFill: [] };
+  }
+  return {
+    stroke: dedupe(["#1e1e1e", ...analogous(scheme.stroke)]),
+    fill: dedupe(["transparent", ...analogous(scheme.fill)]),
+    topStroke: [],
+    topFill: [],
+  };
 }
 
 // Parse the structured import format (NAME/CATEGORY/STROKE/FILL/TOPPICKS_* keys).
@@ -717,6 +747,155 @@ function swatch(parent, color, tooltip) {
 
 let renderPanel; // forward declaration
 
+// ------------------------------------------------------------------
+// Customize-picker editor: hand-pick the exact stroke/fill grids and the
+// top-pick rows for a scheme, with reorder / add / remove and a live preview.
+// Saving stores scheme.picker; "Reset to auto" clears it.
+// ------------------------------------------------------------------
+class PickerEditor extends ea.obsidian.Modal {
+  constructor(scheme) {
+    super(ea.plugin.app);
+    this.scheme = scheme;
+    const b = effectiveBases(scheme);
+    this.stroke = b.stroke.slice(0, 15);
+    this.fill = b.fill.slice(0, 15);
+    this.topStroke = (b.topStroke.length ? b.topStroke : this.stroke).slice(0, 5);
+    this.topFill = (b.topFill.length ? b.topFill : this.fill).slice(0, 5);
+  }
+
+  onOpen() {
+    this.modalEl.style.width = "min(560px, 92vw)";
+    this.render();
+  }
+
+  // A horizontal preview strip of the colours in `arr`.
+  preview(parent, arr) {
+    const strip = parent.createDiv();
+    strip.style.display = "flex";
+    strip.style.flexWrap = "wrap";
+    strip.style.gap = "3px";
+    strip.style.margin = "4px 0 8px";
+    arr.forEach((c) => {
+      const s = swatch(strip, c);
+      s.style.width = "18px";
+      s.style.height = "18px";
+      s.style.cursor = "default";
+    });
+    if (!arr.length) strip.createEl("span", { text: "(empty)", attr: { style: "color:var(--text-muted);font-size:0.8em;" } });
+  }
+
+  // Render one editable list (grid up to `max`, or a top-pick row of 5).
+  list(parent, arr, paletteType, max, label) {
+    const sec = parent.createDiv();
+    sec.style.margin = "10px 0";
+    const head = sec.createDiv();
+    head.style.display = "flex";
+    head.style.alignItems = "center";
+    head.style.gap = "8px";
+    head.createEl("b", { text: `${label} (${arr.length}/${max})` });
+    new ea.obsidian.ButtonComponent(head)
+      .setButtonText("+ Add colour")
+      .onClick(async () => {
+        if (arr.length >= max) {
+          new Notice(`That list is full (max ${max}).`);
+          return;
+        }
+        const picked = await ea.showColorPicker(head, paletteType);
+        if (picked) {
+          arr.push(picked === "transparent" ? "transparent" : picked);
+          this.render();
+        }
+      });
+
+    this.preview(sec, arr);
+
+    arr.forEach((color, i) => {
+      const row = sec.createDiv();
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "6px";
+      row.style.padding = "2px 0";
+
+      const sw = swatch(row, color, "Click to change this colour");
+      sw.addEventListener("click", async () => {
+        const picked = await ea.showColorPicker(sw, paletteType);
+        if (picked) {
+          arr[i] = picked === "transparent" ? "transparent" : picked;
+          this.render();
+        }
+      });
+
+      const lbl = row.createEl("span", { text: String(i + 1).padStart(2, "0") + "  " + color });
+      lbl.style.flex = "1 1 auto";
+      lbl.style.fontSize = "0.8em";
+      lbl.style.color = "var(--text-muted)";
+
+      const up = new ea.obsidian.ButtonComponent(row).setIcon("arrow-up").setTooltip("Move up");
+      up.onClick(() => { if (i > 0) { [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; this.render(); } });
+      const down = new ea.obsidian.ButtonComponent(row).setIcon("arrow-down").setTooltip("Move down");
+      down.onClick(() => { if (i < arr.length - 1) { [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]]; this.render(); } });
+      new ea.obsidian.ButtonComponent(row).setIcon("x").setTooltip("Remove").onClick(() => { arr.splice(i, 1); this.render(); });
+    });
+  }
+
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: `Customize picker — ${this.scheme.name}` });
+    contentEl.createEl("p", {
+      text: "Hand-pick the exact swatches and order for the Stroke and Fill pickers (grids up to 15 = 3×5), plus the 5 quick-pick top rows. Canvas stays white.",
+      attr: { style: "color:var(--text-muted);font-size:0.82em;margin-top:0;" },
+    });
+
+    this.list(contentEl, this.stroke, "elementStroke", 15, "Stroke grid");
+    this.list(contentEl, this.fill, "elementBackground", 15, "Fill grid");
+    this.list(contentEl, this.topStroke, "elementStroke", 5, "Stroke top-picks");
+    this.list(contentEl, this.topFill, "elementBackground", 5, "Fill top-picks");
+
+    const footer = contentEl.createDiv();
+    footer.style.display = "flex";
+    footer.style.gap = "6px";
+    footer.style.marginTop = "14px";
+
+    new ea.obsidian.ButtonComponent(footer)
+      .setButtonText("Save")
+      .setCta()
+      .onClick(() => {
+        if (!this.stroke.length && !this.fill.length) {
+          new Notice("Add at least one colour to a grid.");
+          return;
+        }
+        this.scheme.picker = {
+          stroke: this.stroke.slice(),
+          fill: this.fill.slice(),
+          topStroke: this.topStroke.slice(),
+          topFill: this.topFill.slice(),
+        };
+        if (this.stroke[0]) this.scheme.stroke = this.stroke[0];
+        if (this.fill[0]) this.scheme.fill = this.fill[0];
+        saveSchemes();
+        if (activeScheme === this.scheme.name) loadPaletteToPicker(buildSchemePalette(this.scheme));
+        this.close();
+        renderPanel();
+        new Notice(`Saved custom picker for "${this.scheme.name}".`);
+      });
+
+    new ea.obsidian.ButtonComponent(footer)
+      .setButtonText("Reset to auto")
+      .setTooltip("Discard the custom picker and use the auto-generated palette")
+      .onClick(() => {
+        delete this.scheme.picker;
+        saveSchemes();
+        if (activeScheme === this.scheme.name) loadPaletteToPicker(buildSchemePalette(this.scheme));
+        this.close();
+        renderPanel();
+        new Notice(`"${this.scheme.name}" reset to the auto palette.`);
+      });
+
+    new ea.obsidian.ButtonComponent(footer).setButtonText("Cancel").onClick(() => this.close());
+  }
+}
+
 function renderRow(contentEl, scheme, index) {
   const row = contentEl.createDiv();
   row.style.display = "flex";
@@ -761,6 +940,12 @@ function renderRow(contentEl, scheme, index) {
       }
     });
   }
+
+  // Customize picker — hand-pick the exact swatches / order / top-picks.
+  new ea.obsidian.ButtonComponent(row)
+    .setIcon("sliders-horizontal")
+    .setTooltip("Customize picker (hand-pick colours & order)")
+    .onClick(() => new PickerEditor(scheme).open());
 
   // Rename / recategorize.
   new ea.obsidian.ButtonComponent(row)
