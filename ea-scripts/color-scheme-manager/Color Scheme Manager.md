@@ -40,6 +40,25 @@ if (existingTab) {
   }
 }
 
+// Shown by the ℹ️ button at the top of the side panel.
+const ABOUT = `
+**Color Scheme Manager** swaps the Excalidraw **Stroke** and **Background/Fill**
+colour palettes between named, categorized themes — on the fly.
+
+- **Click a scheme's name** to apply it. With elements selected it recolours their
+  stroke & fill; with nothing selected it sets the active colour for the next
+  elements you draw. Either way the native picker (quick-pick rows + the extended
+  3×5 grid, each swatch with shades) is refreshed with that scheme's family.
+- The **canvas background is never changed** — it stays white.
+- Use the **Category** dropdown to filter the library.
+- **+ New scheme** builds a full palette from two colours; **Import** turns pasted
+  hex codes (e.g. a Paletton export) into a scheme/theme.
+- **Save selection** captures the colours of a selected element.
+- **Load all → picker** loads every scheme's colours at once; **Reset picker** /
+  the **↺ Default** row restore Excalidraw's defaults.
+- Reopen the colour picker to see a refreshed palette (Excalidraw caches it).
+`;
+
 // ------------------------------------------------------------------
 // Persistence
 // ------------------------------------------------------------------
@@ -235,6 +254,20 @@ function categoryList() {
   const ordered = CATEGORY_ORDER.filter((c) => present.has(c));
   for (const c of present) if (!ordered.includes(c)) ordered.push(c);
   return ["All", ...ordered];
+}
+// Ask the user to choose a category for a scheme (existing one or a new name).
+// Returns the chosen category, or `current` if cancelled.
+async function pickCategory(current) {
+  const present = Array.from(new Set(schemes.map((s) => s.category || "Custom")));
+  for (const c of CATEGORY_ORDER) if (!present.includes(c)) present.push(c);
+  const NEW = "＋ New category…";
+  const choice = await utils.suggester([...present, NEW], [...present, NEW], "Choose a category (ESC to keep current)");
+  if (choice === undefined) return current || "Custom";
+  if (choice === NEW) {
+    const name = await utils.inputPrompt("New category", "Category name", current || "Custom");
+    return name && name.trim() ? name.trim() : current || "Custom";
+  }
+  return choice;
 }
 function setActive(name) {
   activeScheme = name || "";
@@ -471,21 +504,11 @@ function loadPaletteToPicker(palette) {
   ea.viewUpdateScene({ appState: { colorPalette }, captureUpdate: "IMMEDIATELY" });
   ea.addElementsToView(true, true); // empty buffer — this just persists the file
   if (ea.targetView.save) ea.targetView.save(false); // hard-save the palette
-
-  // Read the palette back so we can confirm the write actually landed.
-  try {
-    const applied = ea.getExcalidrawAPI().getAppState().colorPalette;
-    const tp = applied && applied.topPicks && applied.topPicks.elementStroke;
-    new Notice(`Picker stroke quick-picks now: ${tp ? tp.join(", ") : "(none)"}`, 6000);
-  } catch (e) {
-    /* non-fatal */
-  }
 }
 
 function resetPicker() {
   if (!ea.targetView) return;
   ea.getExcalidrawAPI().updateScene({ appState: { colorPalette: {} } });
-  new Notice("Color picker reset to Excalidraw defaults.");
 }
 
 // ------------------------------------------------------------------
@@ -512,7 +535,6 @@ async function applyScheme(scheme) {
     }
     await ea.addElementsToView(false, false);
     // Canvas background is left untouched (always white, never themed).
-    new Notice(`Applied "${scheme.name}" to ${selected.length} element(s).`);
   } else {
     // Nothing selected — set the active color for the next drawn elements.
     api.updateScene({
@@ -521,7 +543,6 @@ async function applyScheme(scheme) {
         currentItemBackgroundColor: scheme.fill,
       },
     });
-    new Notice(`"${scheme.name}" set as active color (stroke + fill).`);
   }
 
   // Refresh the native picker. Rich themes (with `accents`) load a full
@@ -605,17 +626,17 @@ function renderRow(contentEl, scheme, index) {
     });
   }
 
-  // Rename.
+  // Rename / recategorize.
   new ea.obsidian.ButtonComponent(row)
     .setIcon("pencil")
-    .setTooltip("Rename")
+    .setTooltip("Rename / change category")
     .onClick(async () => {
       const newName = await utils.inputPrompt("Rename scheme", "Scheme name", scheme.name);
-      if (newName && newName.trim()) {
-        scheme.name = newName.trim();
-        saveSchemes();
-        renderPanel();
-      }
+      if (newName === undefined) return; // cancelled
+      if (newName && newName.trim()) scheme.name = newName.trim();
+      scheme.category = await pickCategory(scheme.category || "Custom");
+      saveSchemes();
+      renderPanel();
     });
 
   // Delete.
@@ -643,14 +664,34 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
     const contentEl = tab.contentEl;
     contentEl.empty();
 
-    contentEl.createEl("h2", { text: "Color Schemes" });
+    // Header: title + ℹ️ info button that toggles the About description.
+    const header = contentEl.createDiv();
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "6px";
+    const h2 = header.createEl("h2", { text: "Color Schemes" });
+    h2.style.margin = "0";
+    h2.style.flex = "1 1 auto";
 
-    const hint = contentEl.createEl("p", {
-      text: "Click a name to apply: recolors the selection (or sets the active color if nothing is selected), repaints the canvas, and refreshes the native picker with THAT scheme's own colour family (stroke + fill, each with shades). 'Load all → picker' loads every scheme instead. Reopen the picker to see the refresh. Click a swatch to change that color.",
-    });
-    hint.style.color = "var(--text-muted)";
-    hint.style.fontSize = "0.8em";
-    hint.style.marginTop = "0";
+    const about = contentEl.createDiv();
+    about.style.display = "none";
+    about.style.background = "var(--background-secondary)";
+    about.style.padding = "8px 10px";
+    about.style.borderRadius = "6px";
+    about.style.margin = "8px 0";
+    about.style.fontSize = "0.82em";
+    try {
+      ea.obsidian.MarkdownRenderer.render(ea.plugin.app, ABOUT, about, "", ea.plugin);
+    } catch (e) {
+      about.setText(ABOUT);
+    }
+
+    new ea.obsidian.ButtonComponent(header)
+      .setIcon("info")
+      .setTooltip("About this script")
+      .onClick(() => {
+        about.style.display = about.style.display === "none" ? "block" : "none";
+      });
 
     if (!schemes.length) {
       contentEl.createEl("p", {
@@ -722,11 +763,11 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
         // Auto-build a full 10-accent palette so the new scheme offers the same
         // rich 15-swatch extended picker as the built-in themes. Canvas = white.
         const accents = synthAccents(stroke, fill);
-        schemes.push({ name: name.trim(), category: "Custom", stroke, fill, bg: "#ffffff", accents });
-        setCategory("Custom");
+        const category = await pickCategory("Custom");
+        schemes.push({ name: name.trim(), category, stroke, fill, bg: "#ffffff", accents });
+        setCategory(category);
         saveSchemes();
         renderPanel();
-        new Notice(`Created "${name.trim()}" with a full 15-swatch palette.`);
       });
 
     new ea.obsidian.ButtonComponent(actions)
@@ -766,19 +807,19 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
         } else {
           accents = synthAccents(valid[0], valid[1] || valid[0]);
         }
+        const category = await pickCategory("Custom");
         const scheme = {
           name: name.trim(),
-          category: "Custom",
+          category,
           stroke: valid[0],
           fill: valid[1] || accents[1],
           bg: "#ffffff",
           accents,
         };
         schemes.push(scheme);
-        setCategory("Custom");
+        setCategory(category);
         saveSchemes();
         renderPanel();
-        new Notice(`Imported "${scheme.name}" with a full 15-swatch palette (${valid.length} colours given).`);
       });
 
     new ea.obsidian.ButtonComponent(actions)
