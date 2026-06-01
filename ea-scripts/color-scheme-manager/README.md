@@ -142,10 +142,16 @@ In each list you can:
 
 - **+ Add colour** via Excalidraw's native picker,
 - **click a swatch** to change it,
-- **↑ / ↓** to reorder,
+- **drag the ⠿ handle** to reorder (drag-and-drop),
 - **✕** to remove.
 
-A live preview strip shows each list as you edit. **Save** stores the exact spec on the scheme (so applying it loads precisely those colours, in that order); **Reset to auto** discards it and returns to the generated palette. The canvas background always stays white.
+A live preview strip shows each list as you edit.
+
+- **↺ Defaults…** reloads the original colours of *this* theme — or pick another theme to copy its defaults as a starting point. Handy to undo custom picks and revert to a theme's defaults.
+- **Save** stores the exact spec on the scheme (so applying it loads precisely those colours, in that order).
+- **Reset to auto** discards the custom spec entirely and returns to the generated palette.
+
+The canvas background always stays white.
 
 > Tip: the labelled **Import** format (Option B above) writes the same spec — the editor is just the visual way to do it.
 

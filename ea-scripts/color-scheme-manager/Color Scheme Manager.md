@@ -535,6 +535,19 @@ function effectiveBases(scheme) {
   };
 }
 
+// The auto-generated base lists for a scheme, IGNORING any custom picker — used
+// by the editor's "Defaults…" action to revert to a theme's original colours.
+function autoBases(scheme) {
+  if (scheme.accents) {
+    const flat = themeFlat(scheme.accents);
+    return { stroke: flat.slice(), fill: flat.slice() };
+  }
+  return {
+    stroke: dedupe(["#1e1e1e", ...analogous(scheme.stroke)]),
+    fill: dedupe(["transparent", ...analogous(scheme.fill)]),
+  };
+}
+
 // Parse the structured import format (NAME/CATEGORY/STROKE/FILL/TOPPICKS_* keys).
 // Returns null if no section keys are present (so the caller falls back to the
 // simple flat hex-list import).
@@ -809,12 +822,47 @@ class PickerEditor extends ea.obsidian.Modal {
 
     this.preview(sec, arr);
 
+    const move = (from, to) => {
+      if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return;
+      const [m] = arr.splice(from, 1);
+      arr.splice(to, 0, m);
+      this.render();
+    };
+
     arr.forEach((color, i) => {
       const row = sec.createDiv();
       row.style.display = "flex";
       row.style.alignItems = "center";
       row.style.gap = "6px";
-      row.style.padding = "2px 0";
+      row.style.padding = "3px 4px";
+      row.style.borderRadius = "4px";
+      row.draggable = true;
+
+      // Drag to reorder.
+      row.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", String(i));
+        e.dataTransfer.effectAllowed = "move";
+        row.style.opacity = "0.4";
+      });
+      row.addEventListener("dragend", () => { row.style.opacity = "1"; });
+      row.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        row.style.borderTop = "2px solid var(--interactive-accent)";
+      });
+      row.addEventListener("dragleave", () => { row.style.borderTop = ""; });
+      row.addEventListener("drop", (e) => {
+        e.preventDefault();
+        row.style.borderTop = "";
+        const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
+        if (!Number.isNaN(from)) move(from, i);
+      });
+
+      const grip = row.createEl("span", { text: "⠿" });
+      grip.setAttribute("aria-label", "Drag to reorder");
+      grip.style.cursor = "grab";
+      grip.style.color = "var(--text-muted)";
+      grip.style.fontSize = "1.05em";
 
       const sw = swatch(row, color, "Click to change this colour");
       sw.addEventListener("click", async () => {
@@ -830,10 +878,6 @@ class PickerEditor extends ea.obsidian.Modal {
       lbl.style.fontSize = "0.8em";
       lbl.style.color = "var(--text-muted)";
 
-      const up = new ea.obsidian.ButtonComponent(row).setIcon("arrow-up").setTooltip("Move up");
-      up.onClick(() => { if (i > 0) { [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; this.render(); } });
-      const down = new ea.obsidian.ButtonComponent(row).setIcon("arrow-down").setTooltip("Move down");
-      down.onClick(() => { if (i < arr.length - 1) { [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]]; this.render(); } });
       new ea.obsidian.ButtonComponent(row).setIcon("x").setTooltip("Remove").onClick(() => { arr.splice(i, 1); this.render(); });
     });
   }
@@ -843,7 +887,7 @@ class PickerEditor extends ea.obsidian.Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: `Customize picker — ${this.scheme.name}` });
     contentEl.createEl("p", {
-      text: "Hand-pick the exact swatches and order for the Stroke and Fill pickers (grids up to 15 = 3×5), plus the 5 quick-pick top rows. Canvas stays white.",
+      text: "Hand-pick the swatches for the Stroke and Fill pickers (grids up to 15 = 3×5) plus the 5 quick-pick top rows. Drag the ⠿ handle to reorder, click a swatch to change it, ✕ to remove. 'Defaults…' reloads the original colours of this (or any) theme. Canvas stays white.",
       attr: { style: "color:var(--text-muted);font-size:0.82em;margin-top:0;" },
     });
 
@@ -854,8 +898,25 @@ class PickerEditor extends ea.obsidian.Modal {
 
     const footer = contentEl.createDiv();
     footer.style.display = "flex";
+    footer.style.flexWrap = "wrap";
     footer.style.gap = "6px";
     footer.style.marginTop = "14px";
+
+    new ea.obsidian.ButtonComponent(footer)
+      .setButtonText("↺ Defaults…")
+      .setTooltip("Reload the original colours of this theme (or copy another theme's defaults)")
+      .onClick(async () => {
+        const labels = ["↩ This scheme's default", ...schemes.map((s) => s.name)];
+        const vals = [this.scheme, ...schemes];
+        const choice = await utils.suggester(labels, vals, "Load default colours from…");
+        if (!choice) return;
+        const ab = autoBases(choice);
+        this.stroke = ab.stroke.slice(0, 15);
+        this.fill = ab.fill.slice(0, 15);
+        this.topStroke = this.stroke.slice(0, 5);
+        this.topFill = this.fill.slice(0, 5);
+        this.render();
+      });
 
     new ea.obsidian.ButtonComponent(footer)
       .setButtonText("Save")
