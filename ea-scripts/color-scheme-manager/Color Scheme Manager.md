@@ -535,6 +535,18 @@ function effectiveBases(scheme) {
   };
 }
 
+// The built-in catalog entry for a scheme name (or null for user schemes).
+function catalogDefault(name) {
+  const key = String(name).toLowerCase();
+  return DEFAULT_SCHEMES.find((s) => s.name.toLowerCase() === key) || null;
+}
+
+// First non-anchor colour in a list (transparent/black/white are anchors), used
+// for a scheme's row-preview stroke/fill so it never shows as transparent.
+function firstRealColor(list) {
+  return list.find((c) => c && c !== "transparent" && c !== "black" && c !== "white") || list[0];
+}
+
 // The auto-generated base lists for a scheme, IGNORING any custom picker — used
 // by the editor's "Defaults…" action to revert to a theme's original colours.
 function autoBases(scheme) {
@@ -887,7 +899,7 @@ class PickerEditor extends ea.obsidian.Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: `Customize picker — ${this.scheme.name}` });
     contentEl.createEl("p", {
-      text: "Hand-pick the swatches for the Stroke and Fill pickers (grids up to 15 = 3×5) plus the 5 quick-pick top rows. Drag the ⠿ handle to reorder, click a swatch to change it, ✕ to remove. 'Defaults…' reloads the original colours of this (or any) theme. Canvas stays white.",
+      text: "Hand-pick the swatches for the Stroke and Fill pickers (grids up to 15 = 3×5) plus the 5 quick-pick top rows. Drag the ⠿ handle to reorder, click a swatch to change it, ✕ to remove. '↺ Revert to default' restores this scheme's built-in colours; 'Load from theme…' copies another theme's colours in. Canvas stays white.",
       attr: { style: "color:var(--text-muted);font-size:0.82em;margin-top:0;" },
     });
 
@@ -903,22 +915,6 @@ class PickerEditor extends ea.obsidian.Modal {
     footer.style.marginTop = "14px";
 
     new ea.obsidian.ButtonComponent(footer)
-      .setButtonText("↺ Defaults…")
-      .setTooltip("Reload the original colours of this theme (or copy another theme's defaults)")
-      .onClick(async () => {
-        const labels = ["↩ This scheme's default", ...schemes.map((s) => s.name)];
-        const vals = [this.scheme, ...schemes];
-        const choice = await utils.suggester(labels, vals, "Load default colours from…");
-        if (!choice) return;
-        const ab = autoBases(choice);
-        this.stroke = ab.stroke.slice(0, 15);
-        this.fill = ab.fill.slice(0, 15);
-        this.topStroke = this.stroke.slice(0, 5);
-        this.topFill = this.fill.slice(0, 5);
-        this.render();
-      });
-
-    new ea.obsidian.ButtonComponent(footer)
       .setButtonText("Save")
       .setCta()
       .onClick(() => {
@@ -932,8 +928,9 @@ class PickerEditor extends ea.obsidian.Modal {
           topStroke: this.topStroke.slice(),
           topFill: this.topFill.slice(),
         };
-        if (this.stroke[0]) this.scheme.stroke = this.stroke[0];
-        if (this.fill[0]) this.scheme.fill = this.fill[0];
+        // Row-preview colours: skip transparent/black/white anchors.
+        if (this.stroke.length) this.scheme.stroke = firstRealColor(this.stroke);
+        if (this.fill.length) this.scheme.fill = firstRealColor(this.fill);
         saveSchemes();
         if (activeScheme === this.scheme.name) loadPaletteToPicker(buildSchemePalette(this.scheme));
         this.close();
@@ -941,16 +938,50 @@ class PickerEditor extends ea.obsidian.Modal {
         new Notice(`Saved custom picker for "${this.scheme.name}".`);
       });
 
+    // Full revert: restore a built-in scheme to its catalog colours (stroke /
+    // fill / accents) and drop any custom picker. For user schemes it just
+    // clears the picker. Re-seeds the editor so you can see/tweak the result.
     new ea.obsidian.ButtonComponent(footer)
-      .setButtonText("Reset to auto")
-      .setTooltip("Discard the custom picker and use the auto-generated palette")
+      .setButtonText("↺ Revert to default")
+      .setTooltip("Restore this scheme's original (built-in) colours and clear the custom picker")
       .onClick(() => {
+        const cat = catalogDefault(this.scheme.name);
         delete this.scheme.picker;
+        if (cat) {
+          this.scheme.stroke = cat.stroke;
+          this.scheme.fill = cat.fill;
+          this.scheme.bg = "#ffffff";
+          if (cat.accents) this.scheme.accents = cat.accents.slice();
+        }
         saveSchemes();
+        const ab = autoBases(this.scheme);
+        this.stroke = ab.stroke.slice(0, 15);
+        this.fill = ab.fill.slice(0, 15);
+        this.topStroke = this.stroke.slice(0, 5);
+        this.topFill = this.fill.slice(0, 5);
         if (activeScheme === this.scheme.name) loadPaletteToPicker(buildSchemePalette(this.scheme));
-        this.close();
         renderPanel();
-        new Notice(`"${this.scheme.name}" reset to the auto palette.`);
+        this.render();
+        new Notice(
+          cat
+            ? `"${this.scheme.name}" reverted to its built-in default colours.`
+            : `"${this.scheme.name}" reset to the auto palette (no built-in default to restore).`
+        );
+      });
+
+    // Build helper: seed the editor lists from any theme's default colours.
+    new ea.obsidian.ButtonComponent(footer)
+      .setButtonText("Load from theme…")
+      .setTooltip("Copy another theme's default colours into the editor as a starting point")
+      .onClick(async () => {
+        const choice = await utils.suggester(schemes.map((s) => s.name), schemes, "Load colours from which theme?");
+        if (!choice) return;
+        const ab = autoBases(choice);
+        this.stroke = ab.stroke.slice(0, 15);
+        this.fill = ab.fill.slice(0, 15);
+        this.topStroke = this.stroke.slice(0, 5);
+        this.topFill = this.fill.slice(0, 5);
+        this.render();
       });
 
     new ea.obsidian.ButtonComponent(footer).setButtonText("Cancel").onClick(() => this.close());

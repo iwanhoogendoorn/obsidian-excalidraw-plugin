@@ -147,9 +147,9 @@ In each list you can:
 
 A live preview strip shows each list as you edit.
 
-- **↺ Defaults…** reloads the original colours of *this* theme — or pick another theme to copy its defaults as a starting point. Handy to undo custom picks and revert to a theme's defaults.
 - **Save** stores the exact spec on the scheme (so applying it loads precisely those colours, in that order).
-- **Reset to auto** discards the custom spec entirely and returns to the generated palette.
+- **↺ Revert to default** restores a built-in scheme's original colours (stroke / fill / accents) and clears the custom picker — the clean way to undo edits. (For your own schemes, it just clears the picker.)
+- **Load from theme…** copies any other theme's default colours into the editor as a starting point.
 
 The canvas background always stays white.
 
