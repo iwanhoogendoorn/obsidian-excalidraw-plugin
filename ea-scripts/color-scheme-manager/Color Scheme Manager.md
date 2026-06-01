@@ -511,6 +511,49 @@ function resetPicker() {
   ea.getExcalidrawAPI().updateScene({ appState: { colorPalette: {} } });
 }
 
+// Sample file shown/downloaded so users know exactly what Import expects.
+const SAMPLE_IMPORT = `# Color Scheme Manager — import sample
+#
+# Paste 6-digit HEX colours, separated by spaces, commas, or new lines.
+# The leading "#" is optional. Any text that is not a 6-digit hex (like
+# these comment lines) is ignored, so you can annotate freely.
+#
+#   • 2 to 5 colours  ->  a simple scheme (1st = stroke, 2nd = fill),
+#                          expanded into a full 15-swatch palette
+#   • 6 or more       ->  a full theme (first 10 colours are used)
+#
+# Example (a 10-colour theme — replace with your own):
+
+5E81AC
+81A1C1
+88C0D0
+8FBCBB
+A3BE8C
+B48EAD
+BF616A
+D08770
+EBCB8B
+4C566A
+`;
+
+function downloadSampleImport() {
+  try {
+    const blob = new Blob([SAMPLE_IMPORT], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "color-scheme-import-sample.txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    new Notice("Saved color-scheme-import-sample.txt to your Downloads folder.");
+  } catch (e) {
+    console.error("Color Scheme Manager: sample download failed", e);
+    new Notice("Could not download the sample — see console.");
+  }
+}
+
 // ------------------------------------------------------------------
 // Apply a scheme to the canvas (smart: selection vs. active color)
 // ------------------------------------------------------------------
@@ -772,13 +815,13 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
 
     new ea.obsidian.ButtonComponent(actions)
       .setButtonText("Import")
-      .setTooltip("Create a scheme or theme from pasted hex codes (e.g. a Paletton export)")
+      .setTooltip("Create a scheme or theme from pasted hex codes (e.g. a Paletton export). Use 'Sample format' for a template.")
       .onClick(async () => {
         const name = await utils.inputPrompt("Import — name", "Scheme name", "My import");
         if (!name || !name.trim()) return;
         const raw = await utils.inputPrompt(
-          "Paste hex colours",
-          "Hex codes separated by space / comma / newline. 2 colours = stroke + fill, 6+ = full theme.",
+          "Paste hex colours (see 'Sample format' button)",
+          "e.g. 5E81AC, 81A1C1, 88C0D0 …  — '#' optional; 2-5 = scheme, 6+ = theme; non-hex text ignored",
           ""
         );
         if (!raw) return;
@@ -821,6 +864,11 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
         saveSchemes();
         renderPanel();
       });
+
+    new ea.obsidian.ButtonComponent(actions)
+      .setButtonText("Sample format")
+      .setTooltip("Download a template showing the Import format")
+      .onClick(() => downloadSampleImport());
 
     new ea.obsidian.ButtonComponent(actions)
       .setButtonText("Add presets")

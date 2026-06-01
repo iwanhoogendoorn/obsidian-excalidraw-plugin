@@ -69,6 +69,7 @@ An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/
 | **Category** dropdown | Filter the list by category (your choice is remembered) |
 | **+ New scheme** | Pick a stroke + fill, then choose a category; a full 10-accent palette is auto-synthesized |
 | **Import** | Paste hex codes (2 = stroke+fill, 6+ = a full theme), then choose a category |
+| **Sample format** | Download a template `.txt` showing exactly what Import expects |
 | **Add presets** | Pull in any built-in themes you don't already have |
 | **Save selection** | Capture the stroke/fill of the currently selected element as a new scheme |
 | **Load all → picker** | Load every saved scheme's colours into the picker at once |
@@ -84,6 +85,32 @@ There are three ways to add a scheme — each one then prompts you for a categor
 - **+ New scheme** — choose a stroke and a fill in the native colour pickers. The script builds a coherent 10-accent family (analogous hues + tonal range) so you still get the full 15-swatch grid.
 - **Import** — paste hex values separated by spaces, commas, or newlines. 6+ colours are used as-is (cycled to 10); 2–5 are expanded into a harmonious spread. Works directly with a [Paletton](https://paletton.com) "as text" export.
 - **Save selection** — select a styled element on the canvas, then click *Save selection* to capture its stroke and fill.
+
+### Import format
+
+Not sure what to paste? Click **Sample format** in the panel to download a ready-to-edit template (`color-scheme-import-sample.txt`). The rules:
+
+- **6-digit HEX** colours, separated by **spaces, commas, or new lines**.
+- The leading `#` is **optional**.
+- Any text that isn't a 6-digit hex (comments, labels) is **ignored** — annotate freely.
+- **2–5** colours → a simple scheme (1st = stroke, 2nd = fill), expanded to a full 15-swatch palette.
+- **6 or more** → a full theme (first 10 colours are used).
+
+```text
+# Color Scheme Manager — import sample
+# 2-5 colours = scheme, 6+ = theme. "#" optional. Non-hex text ignored.
+
+5E81AC
+81A1C1
+88C0D0
+8FBCBB
+A3BE8C
+B48EAD
+BF616A
+D08770
+EBCB8B
+4C566A
+```
 
 ## Categories
 
