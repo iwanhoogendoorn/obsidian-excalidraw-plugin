@@ -480,6 +480,73 @@ function buildThemePalette(accents) {
   };
 }
 
+// Build a palette from an EXPLICIT picker spec: separate stroke + fill grids
+// (each up to 15 swatches) and optional 5-colour top-pick rows. Canvas = white.
+function buildExplicitPalette(picker) {
+  const WHITE = "#ffffff";
+  const stroke = (picker.stroke && picker.stroke.length ? picker.stroke : ["#1e1e1e"]).slice(0, 15);
+  const fill = (picker.fill && picker.fill.length ? picker.fill : ["transparent"]).slice(0, 15);
+  return {
+    elementStroke: stroke.map((c) => getShades(c, "stroke")),
+    elementBackground: fill.map((c) => getShades(c, "background")),
+    canvasBackground: [WHITE],
+    topPicks: {
+      elementStroke: pick5(picker.topStroke && picker.topStroke.length ? picker.topStroke : stroke, "black"),
+      elementBackground: pick5(picker.topFill && picker.topFill.length ? picker.topFill : fill, "transparent"),
+      canvasBackground: [WHITE, WHITE, WHITE, WHITE, WHITE],
+    },
+  };
+}
+
+// One entry point: explicit picker spec > theme accents > simple analogous.
+function buildSchemePalette(scheme) {
+  if (scheme.picker && (scheme.picker.stroke || scheme.picker.fill)) return buildExplicitPalette(scheme.picker);
+  if (scheme.accents) return buildThemePalette(scheme.accents);
+  return paletteForScheme(scheme);
+}
+
+// Parse the structured import format (NAME/CATEGORY/STROKE/FILL/TOPPICKS_* keys).
+// Returns null if no section keys are present (so the caller falls back to the
+// simple flat hex-list import).
+function parseStructuredImport(raw) {
+  const KEYS = ["NAME", "CATEGORY", "STROKE", "FILL", "TOPPICKS_STROKE", "TOPPICKS_FILL"];
+  const data = {};
+  let cur = null;
+  let sawSection = false;
+  for (const line of raw.replace(/\r/g, "").split("\n")) {
+    const m = line.match(/^\s*([A-Z_]+)\s*[:=]\s*(.*)$/);
+    if (m && KEYS.includes(m[1])) {
+      cur = m[1];
+      sawSection = true;
+      data[cur] = (data[cur] || "") + " " + m[2];
+    } else if (cur) {
+      data[cur] += " " + line;
+    }
+  }
+  return sawSection ? data : null;
+}
+
+// Pull valid #RRGGBB strings (and the literal "transparent") out of a chunk.
+function extractColors(text) {
+  if (!text) return [];
+  const out = [];
+  for (const tok of text.split(/[\s,]+/)) {
+    const t = tok.trim().toLowerCase();
+    if (!t) continue;
+    if (t === "transparent" || t === "black" || t === "white") { out.push(t); continue; }
+    const m = t.match(/^#?[0-9a-f]{6}$/);
+    if (!m) continue;
+    const hex = t.startsWith("#") ? t : "#" + t;
+    try {
+      const cm = ea.getCM(hex);
+      if (cm) out.push(cm.stringHEX({ alpha: false }));
+    } catch (e) {
+      /* skip */
+    }
+  }
+  return out;
+}
+
 // Push a prebuilt palette into the live native picker + save. Mirrors the
 // official Palette Loader: write with ea.viewUpdateScene and persist via
 // addElementsToView. We also set ea.colorPalette explicitly so the scene
@@ -512,28 +579,57 @@ function resetPicker() {
 }
 
 // Sample file shown/downloaded so users know exactly what Import expects.
-const SAMPLE_IMPORT = `# Color Scheme Manager — import sample
+const SAMPLE_IMPORT = `# ===========================================================================
+# Color Scheme Manager — IMPORT TEMPLATE
+# ===========================================================================
+# Two ways to import. Pick ONE.
 #
-# Paste 6-digit HEX colours, separated by spaces, commas, or new lines.
-# The leading "#" is optional. Any text that is not a 6-digit hex (like
-# these comment lines) is ignored, so you can annotate freely.
+# Excalidraw has THREE colour pickers. This script treats them as:
+#   STROKE  -> the element "Stroke" picker
+#   FILL    -> the element "Background/Fill" picker
+#   CANVAS  -> the page background. ALWAYS white in this script (not editable),
+#              so you never specify it.
 #
-#   • 2 to 5 colours  ->  a simple scheme (1st = stroke, 2nd = fill),
-#                          expanded into a full 15-swatch palette
-#   • 6 or more       ->  a full theme (first 10 colours are used)
+# Each picker shows a grid of up to 15 swatches = 3 ROWS x 5 COLUMNS, and each
+# swatch automatically gets a light->dark shade ramp. The first 5 you list are
+# row 1, the next 5 are row 2, the next 5 are row 3.
 #
-# Example (a 10-colour theme — replace with your own):
+# ---------------------------------------------------------------------------
+# OPTION A — SIMPLE (one flat list, the script derives stroke + fill for you)
+# ---------------------------------------------------------------------------
+# Just paste 2+ hex colours (spaces / commas / new lines; "#" optional).
+#   2-5 colours -> a scheme (1st = stroke, 2nd = fill), auto-expanded to 15.
+#   6+ colours  -> a theme (first 10 used). Stroke = your colours + dark shades,
+#                  Fill = lighter tints of the same. Example:
+#
+#   5E81AC 81A1C1 88C0D0 8FBCBB A3BE8C B48EAD BF616A D08770 EBCB8B 4C566A
+#
+# ---------------------------------------------------------------------------
+# OPTION B — FULL CONTROL (label each picker; this is what differentiates them)
+# ---------------------------------------------------------------------------
+# Use the labelled keys below. Remove the "#" example above and edit these.
+# STROKE/FILL take up to 15 colours each (3 rows of 5). TOPPICKS_* are the 5
+# quick swatches shown before the grid is opened (optional). "transparent",
+# "black" and "white" are allowed as colour names.
 
-5E81AC
-81A1C1
-88C0D0
-8FBCBB
-A3BE8C
-B48EAD
-BF616A
-D08770
-EBCB8B
-4C566A
+NAME: My Full Theme
+CATEGORY: Custom
+
+# --- STROKE picker: 15 colours = 3 rows x 5 columns ---
+STROKE:
+1E1E1E 5E81AC 81A1C1 88C0D0 8FBCBB
+A3BE8C B48EAD BF616A D08770 EBCB8B
+4C566A 2E3440 3B4252 434C5E D8DEE9
+
+# --- FILL picker: 15 colours = 3 rows x 5 columns ---
+FILL:
+transparent D8DEE9 E5E9F0 ECEFF4 C0D0E0
+CFE8CF E8D6E8 F4C7C3 F5D9C8 F7ECC9
+EBEEF3 C2C9D6 CDD3DE D6DBE5 B9C2D0
+
+# --- Top-pick rows: 5 colours each (optional) ---
+TOPPICKS_STROKE: black 5E81AC BF616A A3BE8C EBCB8B
+TOPPICKS_FILL: transparent E5E9F0 F4C7C3 CFE8CF F7ECC9
 `;
 
 function downloadSampleImport() {
@@ -588,11 +684,8 @@ async function applyScheme(scheme) {
     });
   }
 
-  // Refresh the native picker. Rich themes (with `accents`) load a full
-  // 15-swatch palette; simple schemes load their own analogous colour family.
-  loadPaletteToPicker(
-    scheme.accents ? buildThemePalette(scheme.accents) : paletteForScheme(scheme)
-  );
+  // Refresh the native picker: explicit picker spec > theme accents > analogous.
+  loadPaletteToPicker(buildSchemePalette(scheme));
 
   // Mark this scheme active and refresh the panel so the indicator updates.
   setActive(scheme.name);
@@ -817,50 +910,75 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
       .setButtonText("Import")
       .setTooltip("Create a scheme or theme from pasted hex codes (e.g. a Paletton export). Use 'Sample format' for a template.")
       .onClick(async () => {
-        const name = await utils.inputPrompt("Import — name", "Scheme name", "My import");
-        if (!name || !name.trim()) return;
         const raw = await utils.inputPrompt(
-          "Paste hex colours (see 'Sample format' button)",
-          "e.g. 5E81AC, 81A1C1, 88C0D0 …  — '#' optional; 2-5 = scheme, 6+ = theme; non-hex text ignored",
+          "Paste colours (see 'Sample format' button)",
+          "Flat hex list (2-5 = scheme, 6+ = theme), OR the labelled STROKE:/FILL: format for full control",
           ""
         );
         if (!raw) return;
-        const matches = raw.match(/#?[0-9a-fA-F]{6}/g) || [];
-        const valid = [];
-        for (const m of matches) {
-          const hex = m.startsWith("#") ? m : "#" + m;
-          try {
-            const cm = ea.getCM(hex);
-            if (cm) valid.push(cm.stringHEX({ alpha: false }));
-          } catch (e) {
-            /* skip invalid */
+
+        const structured = parseStructuredImport(raw);
+        let scheme;
+
+        if (structured && (structured.STROKE || structured.FILL)) {
+          // Full control: explicit STROKE / FILL grids (+ optional top-picks).
+          const stroke = extractColors(structured.STROKE);
+          let fill = extractColors(structured.FILL);
+          if (!stroke.length && !fill.length) {
+            new Notice("No valid colours found under STROKE: / FILL:.");
+            return;
           }
-        }
-        if (valid.length < 2) {
-          new Notice("Need at least 2 valid 6-digit hex colours.");
-          return;
-        }
-        // Always build a full 10-accent theme so imports get the rich 15-swatch
-        // palette. 6+ colours are used as-is (cycled to 10); fewer are expanded
-        // into a harmonious spread from the first two.
-        let accents;
-        if (valid.length >= 6) {
-          accents = valid.slice(0, 10);
-          while (accents.length < 10) accents.push(valid[accents.length % valid.length]);
+          if (!fill.length) fill = stroke.slice();
+          if (!stroke.length) return; // need at least a stroke grid
+          let name = (structured.NAME || "").trim();
+          if (!name) {
+            name = await utils.inputPrompt("Import — name", "Scheme name", "My import");
+            if (!name || !name.trim()) return;
+          }
+          let category = (structured.CATEGORY || "").trim();
+          if (!category) category = await pickCategory("Custom");
+          scheme = {
+            name: name.trim(),
+            category,
+            stroke: stroke[0] || "#1e1e1e",
+            fill: fill[0] || "transparent",
+            bg: "#ffffff",
+            picker: {
+              stroke,
+              fill,
+              topStroke: extractColors(structured.TOPPICKS_STROKE),
+              topFill: extractColors(structured.TOPPICKS_FILL),
+            },
+          };
         } else {
-          accents = synthAccents(valid[0], valid[1] || valid[0]);
+          // Simple flat list -> auto-derived stroke/fill grids via accents.
+          const flat = extractColors(raw);
+          if (flat.length < 2) {
+            new Notice("Need at least 2 valid colours (or use the STROKE:/FILL: format).");
+            return;
+          }
+          let accents;
+          if (flat.length >= 6) {
+            accents = flat.slice(0, 10);
+            while (accents.length < 10) accents.push(flat[accents.length % flat.length]);
+          } else {
+            accents = synthAccents(flat[0], flat[1] || flat[0]);
+          }
+          const name = await utils.inputPrompt("Import — name", "Scheme name", "My import");
+          if (!name || !name.trim()) return;
+          const category = await pickCategory("Custom");
+          scheme = {
+            name: name.trim(),
+            category,
+            stroke: flat[0],
+            fill: flat[1] || accents[1],
+            bg: "#ffffff",
+            accents,
+          };
         }
-        const category = await pickCategory("Custom");
-        const scheme = {
-          name: name.trim(),
-          category,
-          stroke: valid[0],
-          fill: valid[1] || accents[1],
-          bg: "#ffffff",
-          accents,
-        };
+
         schemes.push(scheme);
-        setCategory(category);
+        setCategory(scheme.category);
         saveSchemes();
         renderPanel();
       });

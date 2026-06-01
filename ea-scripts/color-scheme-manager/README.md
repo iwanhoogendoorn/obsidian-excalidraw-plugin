@@ -83,33 +83,51 @@ An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/
 There are three ways to add a scheme — each one then prompts you for a category:
 
 - **+ New scheme** — choose a stroke and a fill in the native colour pickers. The script builds a coherent 10-accent family (analogous hues + tonal range) so you still get the full 15-swatch grid.
-- **Import** — paste hex values separated by spaces, commas, or newlines. 6+ colours are used as-is (cycled to 10); 2–5 are expanded into a harmonious spread. Works directly with a [Paletton](https://paletton.com) "as text" export.
+- **Import** — paste colours in either a simple flat list (script derives stroke/fill) or the labelled `STROKE:`/`FILL:` format for full control. Works directly with a [Paletton](https://paletton.com) "as text" export. See **Import format** below.
 - **Save selection** — select a styled element on the canvas, then click *Save selection* to capture its stroke and fill.
 
 ### Import format
 
-Not sure what to paste? Click **Sample format** in the panel to download a ready-to-edit template (`color-scheme-import-sample.txt`). The rules:
+Click **Sample format** in the panel to download a ready-to-edit template (`color-scheme-import-sample.txt`). There are **two ways** to import.
 
-- **6-digit HEX** colours, separated by **spaces, commas, or new lines**.
-- The leading `#` is **optional**.
-- Any text that isn't a 6-digit hex (comments, labels) is **ignored** — annotate freely.
-- **2–5** colours → a simple scheme (1st = stroke, 2nd = fill), expanded to a full 15-swatch palette.
-- **6 or more** → a full theme (first 10 colours are used).
+**Stroke / Fill / Canvas** map to Excalidraw's three colour pickers. In this script the **canvas background is always white and not editable**, so you only ever define **stroke** and **fill**. Each picker grid holds up to **15 swatches = 3 rows × 5 columns** (the first 5 you list are row 1, the next 5 row 2, the next 5 row 3), and every swatch gets an automatic light→dark shade ramp.
+
+Hex is 6 digits, the leading `#` is optional, and `transparent` / `black` / `white` are allowed as names.
+
+#### Option A — Simple (one flat list)
+
+Paste a single list; the script derives stroke and fill for you.
+
+- **2–5** colours → a scheme (1st = stroke, 2nd = fill), auto-expanded to 15.
+- **6+** colours → a theme (first 10 used). Stroke = your colours + dark shades; Fill = lighter tints.
 
 ```text
-# Color Scheme Manager — import sample
-# 2-5 colours = scheme, 6+ = theme. "#" optional. Non-hex text ignored.
+5E81AC 81A1C1 88C0D0 8FBCBB A3BE8C B48EAD BF616A D08770 EBCB8B 4C566A
+```
 
-5E81AC
-81A1C1
-88C0D0
-8FBCBB
-A3BE8C
-B48EAD
-BF616A
-D08770
-EBCB8B
-4C566A
+#### Option B — Full control (labelled stroke + fill)
+
+Label each picker explicitly. `STROKE:` and `FILL:` take up to 15 colours each (3×5); `TOPPICKS_*` are the 5 quick swatches shown before the grid opens (optional). `NAME:` and `CATEGORY:` are optional (you'll be prompted if omitted).
+
+```text
+NAME: My Full Theme
+CATEGORY: Custom
+
+# STROKE picker — 15 colours = 3 rows x 5 columns
+STROKE:
+1E1E1E 5E81AC 81A1C1 88C0D0 8FBCBB
+A3BE8C B48EAD BF616A D08770 EBCB8B
+4C566A 2E3440 3B4252 434C5E D8DEE9
+
+# FILL picker — 15 colours = 3 rows x 5 columns
+FILL:
+transparent D8DEE9 E5E9F0 ECEFF4 C0D0E0
+CFE8CF E8D6E8 F4C7C3 F5D9C8 F7ECC9
+EBEEF3 C2C9D6 CDD3DE D6DBE5 B9C2D0
+
+# Quick-pick rows — 5 colours each (optional)
+TOPPICKS_STROKE: black 5E81AC BF616A A3BE8C EBCB8B
+TOPPICKS_FILL: transparent E5E9F0 F4C7C3 CFE8CF F7ECC9
 ```
 
 ## Categories
