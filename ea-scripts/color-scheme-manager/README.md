@@ -63,21 +63,40 @@ An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/
 
 ## Panel Controls
 
-| Button | Action |
-|--------|--------|
-| **+ New scheme** | Pick a stroke + fill; a full 10-accent palette is auto-synthesized |
-| **Import** | Paste hex codes (2 = stroke+fill, 6+ = a full theme); lands in **Custom** |
+| Control | Action |
+|---------|--------|
+| ℹ️ (top, next to title) | Toggle the **About** description |
+| **Category** dropdown | Filter the list by category (your choice is remembered) |
+| **+ New scheme** | Pick a stroke + fill, then choose a category; a full 10-accent palette is auto-synthesized |
+| **Import** | Paste hex codes (2 = stroke+fill, 6+ = a full theme), then choose a category |
 | **Add presets** | Pull in any built-in themes you don't already have |
 | **Save selection** | Capture the stroke/fill of the currently selected element as a new scheme |
 | **Load all → picker** | Load every saved scheme's colours into the picker at once |
 | **Reset picker** | Restore Excalidraw's default palette |
-| ✎ / 🗑 (per row) | Rename / delete a scheme |
+| ✎ (per row) | Rename **and/or** change the scheme's category |
+| 🗑 (per row) | Delete the scheme (asks for confirmation) |
 | `↺ Default` row | Reset the picker to Excalidraw defaults |
 
-## Creating & Importing
+## Adding your own schemes
 
-- **New scheme:** choose a stroke and a fill — the script builds a coherent 10-accent family (analogous hues + tonal range) so you still get the full 15-swatch grid.
-- **Import:** paste hex values separated by spaces, commas, or newlines. 6+ colours are used as-is (cycled to 10); 2–5 are expanded into a harmonious spread. Works directly with a Paletton text export.
+There are three ways to add a scheme — each one then prompts you for a category:
+
+- **+ New scheme** — choose a stroke and a fill in the native colour pickers. The script builds a coherent 10-accent family (analogous hues + tonal range) so you still get the full 15-swatch grid.
+- **Import** — paste hex values separated by spaces, commas, or newlines. 6+ colours are used as-is (cycled to 10); 2–5 are expanded into a harmonious spread. Works directly with a [Paletton](https://paletton.com) "as text" export.
+- **Save selection** — select a styled element on the canvas, then click *Save selection* to capture its stroke and fill.
+
+## Categories
+
+- The **Category** dropdown at the top filters which schemes are shown.
+- Built-in themes ship with a fixed category (Cloud Providers, Code Editors, etc.). New and imported schemes default to **Custom**.
+- **Assign a category** when creating/importing (pick an existing one or choose **＋ New category…** to type a brand-new name), or change it later with the **✎** button on any row — this works on built-in themes too.
+- A category exists only while at least one scheme uses it. **Move or delete the last scheme in a category and that category disappears from the dropdown** automatically — there is no separate "delete category" step.
+
+## Deleting
+
+- Click the **🗑** on a row to delete that scheme (you'll be asked to confirm).
+- Deleting a **built-in** theme is fine — it will **not** be re-added on the next run (a version flag tracks the one-time merge of built-ins).
+- To wipe everything and start over, delete the `Color Scheme Manager` entry under `scriptEngineSettings` in `data.json` (see below) while Obsidian is closed; the built-ins will be re-seeded on next run.
 
 ## Where schemes are stored
 
@@ -95,7 +114,7 @@ Back up or move that value to transfer your library.
 - The colour picker caches while open — **close and reopen it** to see a newly applied palette.
 - The first cell of each picker stays **transparent**; **black** and **white** are kept as fixed anchors. Every other swatch is theme-derived.
 - Press **Escape** to cancel any prompt.
-- Deleting a built-in theme is fine — it won't be re-added (a version flag tracks the one-time merge).
+- Use the ℹ️ button at the top of the panel for a quick in-app description.
 
 ## License
 
