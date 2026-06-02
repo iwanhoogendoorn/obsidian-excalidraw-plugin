@@ -159,15 +159,18 @@ The canvas background always stays white.
 
 If the **[MindMap Builder](https://github.com/zsviczian/obsidian-excalidraw-plugin)** script (v26.06.02+) is also installed, you can recolour your mind maps straight from here.
 
-When its API is available, the panel shows a **Recolour MindMap Builder** toggle (hidden entirely if the MindMap script isn't installed, so standalone use stays clean).
+When its API is available, the panel shows a **MindMap mode** toggle. **This toggle only appears if the MindMap Builder script is installed and its API is ready** (`window.MindMapBuilderAPI.ready()`) — with the MindMap script absent, nothing shows and the panel stays clean for standalone use.
 
-- **Toggle OFF** — standalone behaviour: clicking a scheme recolours the selection / sets the active colour as usual; the mind map is untouched.
-- **Toggle ON** — *MindMap mode*: clicking any scheme recolours the **entire active map**, giving **each first-level branch (and its subtree) a different colour** from the scheme's palette. **No canvas selection needed**, and it does *not* uniformly repaint everything.
+- **MindMap mode OFF** — standalone behaviour: clicking a scheme recolours the selection / sets the active colour as usual; the mind map is untouched.
+- **MindMap mode ON** — clicking any scheme recolours the **entire active map**, giving **each first-level branch (and its connector line + subtree) a different colour** from the scheme's palette. **No canvas selection needed**, and it does *not* uniformly repaint everything.
 
-How it works: the script reads the map structure from the MindMap Builder API (`getMindMapRoots` → `getElementIdsByRole` → `getMapInfo` for depth → `getBranchElementIds` per first-level branch) and then recolours each branch's elements directly with ExcalidrawAutomate, cycling through the scheme's colours. It also sets the global `customPalette` so newly-added branches stay on theme.
+A notice is shown only when you flip the toggle on/off — recolouring on each theme change is silent.
+
+How it works: the script reads the map structure from the MindMap Builder API (`getMindMapRoots` → `getElementIdsByRole` → `getMapInfo` for depth → `getBranchElementIds` per first-level branch), then recolours each branch's elements directly with ExcalidrawAutomate. Branch colours are **sorted by hue and interleaved** so neighbouring branches look as different as possible (many themes list their accents hue-adjacent). Connector lines are coloured by the branch they point into (via the arrow's bindings). It also sets the global `customPalette` so newly-added branches stay on theme.
 
 - Branch colours come from the scheme's accents (or your custom picker's stroke list), with `transparent` / `black` / `white` dropped.
-- The centre/root node takes the scheme's primary stroke; each branch subtree shares one palette colour, and successive branches step through the palette.
+- The centre/root node takes the scheme's primary stroke; each branch subtree shares one palette colour, and successive branches step across the colour wheel.
+- Single-hue themes (the *Solids* category) only offer variations of one hue — use a multi-colour theme or custom scheme for maximum branch variety.
 
 ## Categories
 

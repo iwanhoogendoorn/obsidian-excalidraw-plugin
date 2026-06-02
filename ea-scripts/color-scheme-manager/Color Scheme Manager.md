@@ -632,9 +632,9 @@ function schemeMindmapColors(scheme) {
 
 // Push a scheme's colours into the MindMap Builder's custom branch palette.
 async function applyToMindMap(scheme) {
+  // Silent on apply — the only user-facing message is the toggle on/off notice.
   const mmb = window.MindMapBuilderAPI;
   if (!mmbReady() || !ea.targetView) {
-    new Notice("MindMap Builder API is not available.");
     return false;
   }
   const colors = schemeMindmapColors(scheme);
@@ -652,8 +652,7 @@ async function applyToMindMap(scheme) {
   const rootsRes = typeof mmb.getMindMapRoots === "function" ? mmb.getMindMapRoots() : null;
   const rootIds = rootsRes && rootsRes.ok ? rootsRes.data.rootIds || [] : [];
   if (!rootIds.length) {
-    new Notice("No mind map found on this canvas.");
-    return false;
+    return false; // no map on this canvas — nothing to do, stay silent
   }
 
   // Map each element id to a colour:
@@ -713,7 +712,7 @@ async function applyToMindMap(scheme) {
   }
 
   if (!idColor.size) {
-    new Notice("Couldn't read the mind map structure to recolour it (see console).");
+    console.warn("Color Scheme Manager: couldn't read the mind map structure to recolour it.");
     return false;
   }
 
@@ -721,7 +720,7 @@ async function applyToMindMap(scheme) {
     ea.clear();
     const targets = ea.getViewElements().filter((el) => idColor.has(el.id));
     if (!targets.length) {
-      new Notice("Mind map elements not found on the canvas to recolour.");
+      console.warn("Color Scheme Manager: mind map elements not found on the canvas to recolour.");
       return false;
     }
     ea.copyViewElementsToEAforEditing(targets);
@@ -730,11 +729,9 @@ async function applyToMindMap(scheme) {
       if (c) el.strokeColor = c;
     }
     await ea.addElementsToView(false, false);
-    new Notice(`Recoloured ${branchCount} mind map branch(es) across ${colors.length} colours.`);
     return true;
   } catch (e) {
     console.error("Color Scheme Manager: mind map recolour apply failed", e);
-    new Notice("Mind map recolour failed — see console.");
     return false;
   }
 }
@@ -1326,11 +1323,14 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
     // the panel stays clean for standalone use.
     if (mmbReady()) {
       new ea.obsidian.Setting(contentEl)
-        .setName("Recolour MindMap Builder")
-        .setDesc("Also apply the scheme's colours to the active mind map when you click it")
+        .setName("MindMap mode")
+        .setDesc("When on, picking a theme recolours the active mind map — each branch a different theme colour")
         .addToggle((tg) => {
           tg.setValue(mmbSync);
-          tg.onChange((v) => setMmbSync(v));
+          tg.onChange((v) => {
+            setMmbSync(v);
+            new Notice(v ? "MindMap mode ON — themes now recolour the mind map." : "MindMap mode OFF — themes apply to the canvas only.");
+          });
         });
     }
 
