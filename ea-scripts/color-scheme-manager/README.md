@@ -163,6 +163,8 @@ When its API is available, the panel shows a **MindMap mode** toggle. **This tog
 
 ![Image](cpmm.png)
 
+<img src="cpmm.png" width="50%">
+
 - **MindMap mode OFF** — standalone behaviour: clicking a scheme recolours the selection / sets the active colour as usual; the mind map is untouched.
 - **MindMap mode ON** — clicking any scheme recolours the **entire active map**, giving **each first-level branch (and its connector line + subtree) a different colour** from the scheme's palette. **No canvas selection needed**, and it does *not* uniformly repaint everything.
 
