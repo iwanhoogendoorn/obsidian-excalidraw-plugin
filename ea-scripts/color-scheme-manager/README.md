@@ -89,7 +89,7 @@ There are three ways to add a scheme — each one then prompts you for a categor
 
 ### Import format
 
-Click **Sample format** in the panel to download a ready-to-edit template (`color-scheme-import-sample.txt`). Then **Import** lets you either **📋 paste** the colours or **📄 open a `.txt` file** (e.g. the template you just edited, or a saved palette file) — both run through the same parser. There are **two formats** you can use.
+Click **Sample format** in the panel to download a ready-to-edit template (`color-scheme-import-sample.txt`). Then **Import** lets you either **📋 paste** the colours or **📄 open a `.txt` file** (e.g. the template you just edited, or a saved palette file) — both run through the same parser. There are **three formats** you can use.
 
 **Stroke / Fill / Canvas** map to Excalidraw's three colour pickers. In this script the **canvas background is always white and not editable**, so you only ever define **stroke** and **fill**. Each picker grid holds up to **15 swatches = 3 rows × 5 columns** (the first 5 you list are row 1, the next 5 row 2, the next 5 row 3), and every swatch gets an automatic light→dark shade ramp.
 
@@ -130,6 +130,27 @@ EBEEF3 C2C9D6 CDD3DE D6DBE5 B9C2D0
 TOPPICKS_STROKE: black 5E81AC BF616A A3BE8C EBCB8B
 TOPPICKS_FILL: transparent E5E9F0 F4C7C3 CFE8CF F7ECC9
 ```
+
+#### Option C — Raw appState palette (JSON)
+
+For maximum fidelity you can paste/import a raw Excalidraw **`colorPalette`** object straight from a drawing's `appState` — either the bare palette or an object with a `colorPalette` key. It's loaded **verbatim**: every swatch keeps its exact shade ramp and the `topPicks` rows are preserved, with no regeneration.
+
+```json
+{
+  "colorPalette": {
+    "elementStroke": [ "transparent", "black", ["#B2B0B0","#8B8988","#323131","#191918","#646261"], … ],
+    "elementBackground": [ … ],
+    "canvasBackground": [ … ],
+    "topPicks": {
+      "elementStroke": ["#755941","#006666","black","#CECDCC","transparent"],
+      "elementBackground": ["#FFF6F0","#E6D2C1","#99DEDE","#CECDCC","transparent"],
+      "canvasBackground": ["#FFF6F0","#AF9178","#002C2C","#CECDCC","#646261"]
+    }
+  }
+}
+```
+
+> Unlike the other formats (which keep the canvas white), a raw appState palette is applied exactly as given — including its `canvasBackground` and `topPicks`.
 
 ## Customizing the picker
 

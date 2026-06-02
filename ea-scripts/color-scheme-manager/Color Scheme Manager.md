@@ -523,15 +523,31 @@ function buildExplicitPalette(picker) {
   };
 }
 
-// One entry point: explicit picker spec > theme accents > simple analogous.
+// One entry point: explicit picker spec > raw appState palette > theme accents
+// > simple analogous.
 function buildSchemePalette(scheme) {
   if (scheme.picker && (scheme.picker.stroke || scheme.picker.fill)) return buildExplicitPalette(scheme.picker);
+  if (scheme.rawPalette) return scheme.rawPalette; // loaded verbatim
   if (scheme.accents) return buildThemePalette(scheme.accents);
   return paletteForScheme(scheme);
 }
 
+// Representative base colour of one colorPalette entry (string, or a [shades]
+// array — pick its first usable colour).
+function entryBase(entry) {
+  if (Array.isArray(entry)) {
+    for (const c of entry) {
+      const k = String(c || "").toLowerCase();
+      if (c && k !== "transparent" && k !== "black" && k !== "white") return c;
+    }
+    return entry[0];
+  }
+  return entry;
+}
+
 // The base swatch lists currently driving a scheme's picker — used to pre-fill
-// the Customize editor (from an explicit spec, a theme, or a simple scheme).
+// the Customize editor (from an explicit spec, a raw palette, a theme, or a
+// simple scheme).
 function effectiveBases(scheme) {
   if (scheme.picker && (scheme.picker.stroke || scheme.picker.fill)) {
     return {
@@ -539,6 +555,15 @@ function effectiveBases(scheme) {
       fill: (scheme.picker.fill || []).slice(),
       topStroke: (scheme.picker.topStroke || []).slice(),
       topFill: (scheme.picker.topFill || []).slice(),
+    };
+  }
+  if (scheme.rawPalette) {
+    const p = scheme.rawPalette;
+    return {
+      stroke: (p.elementStroke || []).map(entryBase),
+      fill: (p.elementBackground || []).map(entryBase),
+      topStroke: (p.topPicks && p.topPicks.elementStroke) || [],
+      topFill: (p.topPicks && p.topPicks.elementBackground) || [],
     };
   }
   if (scheme.accents) {
@@ -601,6 +626,7 @@ function mmbReady() {
 function schemeMindmapColors(scheme) {
   let src;
   if (scheme.picker && scheme.picker.stroke && scheme.picker.stroke.length) src = scheme.picker.stroke;
+  else if (scheme.rawPalette && Array.isArray(scheme.rawPalette.elementStroke)) src = scheme.rawPalette.elementStroke.map(entryBase);
   else if (scheme.accents && scheme.accents.length) src = scheme.accents;
   else src = autoBases(scheme).stroke;
 
@@ -795,11 +821,70 @@ function extractColors(text) {
   return out;
 }
 
-// Build + save a scheme from raw import text (flat list OR labelled
-// STROKE:/FILL: format). Shared by paste-import and file-import. Prompts for
-// name/category only when not supplied in the text. Returns true on success.
+// Detect & parse a raw Excalidraw appState colorPalette object (the exact JSON
+// you can copy from a drawing's appState). Accepts either the bare palette or
+// an object with a `colorPalette` key. Returns the palette or null.
+function parseRawPalette(raw) {
+  const t = String(raw || "").trim();
+  if (!t.startsWith("{")) return null;
+  let obj;
+  try {
+    obj = JSON.parse(t);
+  } catch (e) {
+    return null;
+  }
+  const pal = obj && obj.colorPalette ? obj.colorPalette : obj;
+  if (
+    pal &&
+    (Array.isArray(pal.elementStroke) || Array.isArray(pal.elementBackground) || Array.isArray(pal.canvasBackground))
+  ) {
+    return pal;
+  }
+  return null;
+}
+
+// First usable colour from a colorPalette category array (entries are either a
+// colour string or a [shades] array). Skips transparent/black/white anchors.
+function firstColorFrom(arr) {
+  for (const entry of arr || []) {
+    const cands = Array.isArray(entry) ? entry : [entry];
+    for (const c of cands) {
+      const k = String(c || "").toLowerCase();
+      if (c && k !== "transparent" && k !== "black" && k !== "white") return c;
+    }
+  }
+  return null;
+}
+
+// Build + save a scheme from raw import text. Supports: a raw appState
+// colorPalette JSON (loaded verbatim), the labelled STROKE:/FILL: format, or a
+// simple flat hex list. Shared by paste-import and file-import. Returns true on
+// success.
 async function importColors(raw) {
   if (!raw || !raw.trim()) return false;
+
+  // 1) Raw appState colorPalette JSON — load the exact palette (shades + top
+  // picks) without regenerating anything.
+  const rawPal = parseRawPalette(raw);
+  if (rawPal) {
+    let name = await utils.inputPrompt("Import — name", "Scheme name", "Imported palette");
+    if (!name || !name.trim()) return false;
+    const category = await pickCategory("Custom");
+    const scheme = {
+      name: name.trim(),
+      category,
+      stroke: firstColorFrom(rawPal.elementStroke) || "#1e1e1e",
+      fill: firstColorFrom(rawPal.elementBackground) || "transparent",
+      bg: "#ffffff",
+      rawPalette: rawPal,
+    };
+    schemes.push(scheme);
+    setCategory(scheme.category);
+    saveSchemes();
+    if (renderPanel) renderPanel();
+    return true;
+  }
+
   const structured = parseStructuredImport(raw);
   let scheme;
 
@@ -1527,7 +1612,7 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
         } else {
           raw = await utils.inputPrompt(
             "Paste colours (see 'Sample format' button)",
-            "Flat hex list (2-5 = scheme, 6+ = theme), OR the labelled STROKE:/FILL: format for full control",
+            "Flat hex list, the labelled STROKE:/FILL: format, OR a raw appState colorPalette JSON",
             ""
           );
           if (!raw) return;
