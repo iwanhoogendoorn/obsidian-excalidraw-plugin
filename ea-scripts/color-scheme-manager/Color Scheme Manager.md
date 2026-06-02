@@ -740,16 +740,25 @@ async function applyToMindMap(scheme) {
 // Returns null if no section keys are present (so the caller falls back to the
 // simple flat hex-list import).
 function parseStructuredImport(raw) {
-  const KEYS = ["NAME", "CATEGORY", "STROKE", "FILL", "TOPPICKS_STROKE", "TOPPICKS_FILL"];
+  // NAME/CATEGORY are single-line (value is only what's on their own line);
+  // STROKE/FILL/TOPPICKS_* are multi-line (following colour rows belong to them).
+  const SINGLE = ["NAME", "CATEGORY"];
+  const MULTI = ["STROKE", "FILL", "TOPPICKS_STROKE", "TOPPICKS_FILL"];
+  const KEYS = [...SINGLE, ...MULTI];
   const data = {};
-  let cur = null;
+  let cur = null; // only ever a MULTI key
   let sawSection = false;
   for (const line of raw.replace(/\r/g, "").split("\n")) {
+    // Skip comment lines: a "#" that is NOT a #RRGGBB colour (so "# notes" and
+    // "# --- STROKE ---" are ignored, but "#FF0000" is kept).
+    if (/^\s*#(?![0-9a-fA-F]{6}\b)/.test(line)) continue;
+
     const m = line.match(/^\s*([A-Z_]+)\s*[:=]\s*(.*)$/);
     if (m && KEYS.includes(m[1])) {
-      cur = m[1];
       sawSection = true;
-      data[cur] = (data[cur] || "") + " " + m[2];
+      const key = m[1];
+      data[key] = (data[key] ? data[key] + " " : "") + m[2];
+      cur = MULTI.includes(key) ? key : null; // single-line keys don't capture following lines
     } else if (cur) {
       data[cur] += " " + line;
     }
