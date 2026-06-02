@@ -1087,6 +1087,49 @@ function downloadSampleImport() {
   }
 }
 
+// Export the drawing's CURRENT live colour picker palette (appState.colorPalette)
+// as JSON — copies to the clipboard and downloads a file. This is the raw
+// appState palette you can re-import (Option C) or share.
+async function exportCurrentPalette() {
+  if (!ea.targetView) {
+    new Notice("No active Excalidraw view.");
+    return;
+  }
+  let pal = {};
+  try {
+    pal = ea.getExcalidrawAPI().getAppState().colorPalette || {};
+  } catch (e) {
+    console.error("Color Scheme Manager: could not read colorPalette", e);
+  }
+  if (!pal || !Object.keys(pal).length) {
+    new Notice("This drawing has no custom palette yet — apply a scheme first, then export.");
+    return;
+  }
+  const json = JSON.stringify({ colorPalette: pal }, null, 2);
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(json);
+    copied = true;
+  } catch (e) {
+    /* clipboard may be unavailable; fall back to download only */
+  }
+  try {
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "color-palette-appstate.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    new Notice(`Exported current palette${copied ? " (copied to clipboard + " : " ("}saved to Downloads).`);
+  } catch (e) {
+    console.error("Color Scheme Manager: palette export failed", e);
+    new Notice(copied ? "Palette JSON copied to clipboard." : "Export failed — see console.");
+  }
+}
+
 // ------------------------------------------------------------------
 // Apply a scheme to the canvas (smart: selection vs. active color)
 // ------------------------------------------------------------------
@@ -1624,6 +1667,11 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
       .setButtonText("Sample format")
       .setTooltip("Download a template showing the Import format")
       .onClick(() => downloadSampleImport());
+
+    new ea.obsidian.ButtonComponent(actions)
+      .setButtonText("Export palette")
+      .setTooltip("Save the drawing's current colour palette as appState JSON (clipboard + Downloads)")
+      .onClick(() => exportCurrentPalette());
 
     new ea.obsidian.ButtonComponent(actions)
       .setButtonText("Add presets")

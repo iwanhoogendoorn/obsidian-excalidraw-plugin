@@ -70,6 +70,7 @@ An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/
 | **+ New scheme** | Pick a stroke + fill, then choose a category; a full 10-accent palette is auto-synthesized |
 | **Import** | Paste colours **or open a `.txt` file**, then choose a category (2 = stroke+fill, 6+ = a full theme) |
 | **Sample format** | Download a template `.txt` showing exactly what Import expects |
+| **Export palette** | Save the drawing's current picker palette as appState JSON (clipboard + Downloads) — re-importable via Option C |
 | **Add presets** | Pull in any built-in themes you don't already have |
 | **Save selection** | Capture the stroke/fill of the currently selected element as a new scheme |
 | **Load all → picker** | Load every saved scheme's colours into the picker at once |
@@ -134,6 +135,8 @@ TOPPICKS_FILL: transparent E5E9F0 F4C7C3 CFE8CF F7ECC9
 #### Option C — Raw appState palette (JSON)
 
 For maximum fidelity you can paste/import a raw Excalidraw **`colorPalette`** object straight from a drawing's `appState` — either the bare palette or an object with a `colorPalette` key. It's loaded **verbatim**: every swatch keeps its exact shade ramp and the `topPicks` rows are preserved, with no regeneration.
+
+**Where do you get it?** Click **Export palette** in the panel — it grabs the drawing's *current* `appState.colorPalette`, copies it to the clipboard, and downloads `color-palette-appstate.json`. (Apply a scheme first so there's a palette to export.) You can then edit that JSON and re-import it here, or share it.
 
 ```json
 {
