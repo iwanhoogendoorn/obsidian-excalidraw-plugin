@@ -1,0 +1,23 @@
+# ===========================================================================
+# Color Scheme Manager — IMPORT TEMPLATE
+# ===========================================================================
+# Based on Obsidian Excalidraw default warm-earth + teal palette
+
+NAME: Obsidian Excalidraw Earth & Teal
+CATEGORY: Obsidian
+
+# --- STROKE picker: 15 colours = 3 rows x 5 columns ---
+STROKE:
+black #646261 #CECDCC #755941 #583111
+#006666 #002C2C #748A8A #274646 #0A3535
+#FF0000 #AA0000 #FF7400 #FFAA00 white
+
+# --- FILL picker: 15 colours = 3 rows x 5 columns ---
+FILL:
+transparent #FFF6F0 #E6D2C1 #AF9178 #C4AB96
+#99DEDE #38ABAB #CFD5D5 #748A8A #486969
+#FFB0B0 #FFD4B0 #FFE5B0 #FFE3A9 white
+
+# --- Top-pick rows: 5 colours each (optional) ---
+TOPPICKS_STROKE: #755941 #006666 black #CECDCC #FF7400
+TOPPICKS_FILL: #FFF6F0 #99DEDE #E6D2C1 #FFE5B0 transparent
