@@ -68,7 +68,7 @@ An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/
 | ℹ️ (top, next to title) | Toggle the **About** description |
 | **Category** dropdown | Filter the list by category (your choice is remembered) |
 | **+ New scheme** | Pick a stroke + fill, then choose a category; a full 10-accent palette is auto-synthesized |
-| **Import** | Paste hex codes (2 = stroke+fill, 6+ = a full theme), then choose a category |
+| **Import** | Paste colours **or open a `.txt` file**, then choose a category (2 = stroke+fill, 6+ = a full theme) |
 | **Sample format** | Download a template `.txt` showing exactly what Import expects |
 | **Add presets** | Pull in any built-in themes you don't already have |
 | **Save selection** | Capture the stroke/fill of the currently selected element as a new scheme |
@@ -84,12 +84,12 @@ An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/
 There are three ways to add a scheme — each one then prompts you for a category:
 
 - **+ New scheme** — choose a stroke and a fill in the native colour pickers. The script builds a coherent 10-accent family (analogous hues + tonal range) so you still get the full 15-swatch grid.
-- **Import** — paste colours in either a simple flat list (script derives stroke/fill) or the labelled `STROKE:`/`FILL:` format for full control. Works directly with a [Paletton](https://paletton.com) "as text" export. See **Import format** below.
+- **Import** — **paste** colours or **open a `.txt` file**, in either a simple flat list (script derives stroke/fill) or the labelled `STROKE:`/`FILL:` format for full control. Works directly with a [Paletton](https://paletton.com) "as text" export or the downloaded Sample format file. See **Import format** below.
 - **Save selection** — select a styled element on the canvas, then click *Save selection* to capture its stroke and fill.
 
 ### Import format
 
-Click **Sample format** in the panel to download a ready-to-edit template (`color-scheme-import-sample.txt`). There are **two ways** to import.
+Click **Sample format** in the panel to download a ready-to-edit template (`color-scheme-import-sample.txt`). Then **Import** lets you either **📋 paste** the colours or **📄 open a `.txt` file** (e.g. the template you just edited, or a saved palette file) — both run through the same parser. There are **two formats** you can use.
 
 **Stroke / Fill / Canvas** map to Excalidraw's three colour pickers. In this script the **canvas background is always white and not editable**, so you only ever define **stroke** and **fill**. Each picker grid holds up to **15 swatches = 3 rows × 5 columns** (the first 5 you list are row 1, the next 5 row 2, the next 5 row 3), and every swatch gets an automatic light→dark shade ramp.
 

@@ -778,6 +778,110 @@ function extractColors(text) {
   return out;
 }
 
+// Build + save a scheme from raw import text (flat list OR labelled
+// STROKE:/FILL: format). Shared by paste-import and file-import. Prompts for
+// name/category only when not supplied in the text. Returns true on success.
+async function importColors(raw) {
+  if (!raw || !raw.trim()) return false;
+  const structured = parseStructuredImport(raw);
+  let scheme;
+
+  if (structured && (structured.STROKE || structured.FILL)) {
+    // Full control: explicit STROKE / FILL grids (+ optional top-picks).
+    const stroke = extractColors(structured.STROKE);
+    let fill = extractColors(structured.FILL);
+    if (!stroke.length && !fill.length) {
+      new Notice("No valid colours found under STROKE: / FILL:.");
+      return false;
+    }
+    if (!fill.length) fill = stroke.slice();
+    if (!stroke.length) return false;
+    let name = (structured.NAME || "").trim();
+    if (!name) {
+      name = await utils.inputPrompt("Import — name", "Scheme name", "My import");
+      if (!name || !name.trim()) return false;
+    }
+    let category = (structured.CATEGORY || "").trim();
+    if (!category) category = await pickCategory("Custom");
+    scheme = {
+      name: name.trim(),
+      category,
+      stroke: stroke[0] || "#1e1e1e",
+      fill: fill[0] || "transparent",
+      bg: "#ffffff",
+      picker: {
+        stroke,
+        fill,
+        topStroke: extractColors(structured.TOPPICKS_STROKE),
+        topFill: extractColors(structured.TOPPICKS_FILL),
+      },
+    };
+  } else {
+    // Simple flat list -> auto-derived stroke/fill grids via accents.
+    const flat = extractColors(raw);
+    if (flat.length < 2) {
+      new Notice("Need at least 2 valid colours (or use the STROKE:/FILL: format).");
+      return false;
+    }
+    let accents;
+    if (flat.length >= 6) {
+      accents = flat.slice(0, 10);
+      while (accents.length < 10) accents.push(flat[accents.length % flat.length]);
+    } else {
+      accents = synthAccents(flat[0], flat[1] || flat[0]);
+    }
+    const name = await utils.inputPrompt("Import — name", "Scheme name", "My import");
+    if (!name || !name.trim()) return false;
+    const category = await pickCategory("Custom");
+    scheme = {
+      name: name.trim(),
+      category,
+      stroke: flat[0],
+      fill: flat[1] || accents[1],
+      bg: "#ffffff",
+      accents,
+    };
+  }
+
+  schemes.push(scheme);
+  setCategory(scheme.category);
+  saveSchemes();
+  if (renderPanel) renderPanel();
+  return true;
+}
+
+// Open a native file chooser and return the selected text file's contents
+// (or null if cancelled). Used by the "Import" file option.
+function pickTextFile() {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".txt,.md,.csv,text/plain";
+    input.style.display = "none";
+    let settled = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("focus", onFocus);
+      try { input.remove(); } catch (e) {}
+      resolve(val);
+    };
+    const onFocus = () => {
+      // Fires when the OS dialog closes; if nothing was chosen, treat as cancel.
+      setTimeout(() => { if (!input.files || !input.files.length) finish(null); }, 500);
+    };
+    input.addEventListener("change", async () => {
+      const file = input.files && input.files[0];
+      if (!file) return finish(null);
+      try { finish(await file.text()); }
+      catch (e) { console.error("Color Scheme Manager: file read failed", e); finish(null); }
+    });
+    document.body.appendChild(input);
+    window.addEventListener("focus", onFocus);
+    input.click();
+  });
+}
+
 // Push a prebuilt palette into the live native picker + save. Mirrors the
 // official Palette Loader: write with ea.viewUpdateScene and persist via
 // addElementsToView. We also set ea.colorPalette explicitly so the scene
@@ -1391,79 +1495,27 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
 
     new ea.obsidian.ButtonComponent(actions)
       .setButtonText("Import")
-      .setTooltip("Create a scheme or theme from pasted hex codes (e.g. a Paletton export). Use 'Sample format' for a template.")
+      .setTooltip("Create a scheme/theme from pasted colours or a .txt file (e.g. an edited Sample format)")
       .onClick(async () => {
-        const raw = await utils.inputPrompt(
-          "Paste colours (see 'Sample format' button)",
-          "Flat hex list (2-5 = scheme, 6+ = theme), OR the labelled STROKE:/FILL: format for full control",
-          ""
+        const how = await utils.suggester(
+          ["📋  Paste colours", "📄  Open a .txt file…"],
+          ["paste", "file"],
+          "Import colours from…"
         );
-        if (!raw) return;
-
-        const structured = parseStructuredImport(raw);
-        let scheme;
-
-        if (structured && (structured.STROKE || structured.FILL)) {
-          // Full control: explicit STROKE / FILL grids (+ optional top-picks).
-          const stroke = extractColors(structured.STROKE);
-          let fill = extractColors(structured.FILL);
-          if (!stroke.length && !fill.length) {
-            new Notice("No valid colours found under STROKE: / FILL:.");
-            return;
-          }
-          if (!fill.length) fill = stroke.slice();
-          if (!stroke.length) return; // need at least a stroke grid
-          let name = (structured.NAME || "").trim();
-          if (!name) {
-            name = await utils.inputPrompt("Import — name", "Scheme name", "My import");
-            if (!name || !name.trim()) return;
-          }
-          let category = (structured.CATEGORY || "").trim();
-          if (!category) category = await pickCategory("Custom");
-          scheme = {
-            name: name.trim(),
-            category,
-            stroke: stroke[0] || "#1e1e1e",
-            fill: fill[0] || "transparent",
-            bg: "#ffffff",
-            picker: {
-              stroke,
-              fill,
-              topStroke: extractColors(structured.TOPPICKS_STROKE),
-              topFill: extractColors(structured.TOPPICKS_FILL),
-            },
-          };
+        if (!how) return;
+        let raw;
+        if (how === "file") {
+          raw = await pickTextFile();
+          if (!raw) return;
         } else {
-          // Simple flat list -> auto-derived stroke/fill grids via accents.
-          const flat = extractColors(raw);
-          if (flat.length < 2) {
-            new Notice("Need at least 2 valid colours (or use the STROKE:/FILL: format).");
-            return;
-          }
-          let accents;
-          if (flat.length >= 6) {
-            accents = flat.slice(0, 10);
-            while (accents.length < 10) accents.push(flat[accents.length % flat.length]);
-          } else {
-            accents = synthAccents(flat[0], flat[1] || flat[0]);
-          }
-          const name = await utils.inputPrompt("Import — name", "Scheme name", "My import");
-          if (!name || !name.trim()) return;
-          const category = await pickCategory("Custom");
-          scheme = {
-            name: name.trim(),
-            category,
-            stroke: flat[0],
-            fill: flat[1] || accents[1],
-            bg: "#ffffff",
-            accents,
-          };
+          raw = await utils.inputPrompt(
+            "Paste colours (see 'Sample format' button)",
+            "Flat hex list (2-5 = scheme, 6+ = theme), OR the labelled STROKE:/FILL: format for full control",
+            ""
+          );
+          if (!raw) return;
         }
-
-        schemes.push(scheme);
-        setCategory(scheme.category);
-        saveSchemes();
-        renderPanel();
+        await importColors(raw);
       });
 
     new ea.obsidian.ButtonComponent(actions)
