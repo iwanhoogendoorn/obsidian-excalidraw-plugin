@@ -611,36 +611,46 @@ async function applyToMindMap(scheme) {
     return;
   }
   const colors = schemeMindmapColors(scheme);
+  // multicolor + a sequential customPalette => each branch takes the NEXT colour
+  // in the list (not all the same). random:false keeps it deterministic.
+  const patch = {
+    multicolor: true,
+    customPalette: { enabled: true, random: false, colors },
+  };
   try {
-    const res = await mmb.setGlobalConfig({
-      patch: {
-        multicolor: true,
-        customPalette: { enabled: true, random: false, colors },
-      },
-    });
-    if (!res || !res.ok) {
-      const msg = (res && res.error && res.error.message) || "unknown error";
-      console.error("MindMap Builder setGlobalConfig failed:", res);
+    // Global config: the default for new maps + refreshes the sidepanel UI.
+    const gRes = await mmb.setGlobalConfig({ patch });
+    if (!gRes || !gRes.ok) {
+      const msg = (gRes && gRes.error && gRes.error.message) || "unknown error";
+      console.error("MindMap Builder setGlobalConfig failed:", gRes);
       new Notice("MindMap Builder update failed: " + msg);
       return false;
     }
-    // setGlobalConfig only affects FUTURE layout, so relayout existing maps to
-    // actually repaint their branches with the new palette.
-    let relaid = 0;
+
+    // Recolour EXISTING maps: a per-map config patch with relayout actually
+    // repaints each map's branches with the palette (global alone only affects
+    // future layout). No canvas selection needed.
+    let recoloured = 0;
     try {
       const rootsRes = typeof mmb.getMindMapRoots === "function" ? mmb.getMindMapRoots() : null;
       const rootIds = rootsRes && rootsRes.ok ? rootsRes.data.rootIds || [] : [];
       for (const rootId of rootIds) {
-        const r = await mmb.refreshMapLayout(rootId);
-        if (r && r.ok) relaid++;
+        let r;
+        if (typeof mmb.setMapConfig === "function") {
+          r = await mmb.setMapConfig({ patch, nodeId: rootId, relayout: true });
+        } else if (typeof mmb.refreshMapLayout === "function") {
+          r = await mmb.refreshMapLayout(rootId);
+        }
+        if (r && r.ok) recoloured++;
       }
     } catch (e) {
-      console.error("Color Scheme Manager: refreshMapLayout failed", e);
+      console.error("Color Scheme Manager: per-map recolour failed", e);
     }
+
     new Notice(
-      relaid
-        ? `Recoloured ${relaid} mind map(s) with "${scheme.name}" (${colors.length} colours).`
-        : `MindMap palette set to "${scheme.name}". Add/relayout nodes to apply (no existing map found).`
+      recoloured
+        ? `Recoloured ${recoloured} mind map(s) with "${scheme.name}" — ${colors.length} colours, one per branch.`
+        : `MindMap palette set to "${scheme.name}". Add or relayout nodes to apply (no existing map found).`
     );
     return true;
   } catch (e) {

@@ -161,26 +161,26 @@ If the **[MindMap Builder](https://github.com/zsviczian/obsidian-excalidraw-plug
 
 When its API is available, the panel shows a **Recolour MindMap Builder** toggle (it's hidden entirely if the MindMap script isn't installed, so standalone use stays clean). Flip it on, then **clicking any scheme** also recolours the active mind map — no extra buttons or clicks.
 
-Under the hood it calls the MindMap Builder API and relayouts existing maps so they actually repaint:
+Under the hood it sets the global config (for new maps) **and** patches each existing map's config with a relayout, so existing branches actually repaint:
 
 ```js
 const mmb = window.MindMapBuilderAPI;
+const patch = {
+  multicolor: true,
+  customPalette: { enabled: true, random: false, colors: [/* scheme colours */] },
+};
 if (mmb?.ready()) {
-  await mmb.setGlobalConfig({
-    patch: {
-      multicolor: true,
-      customPalette: { enabled: true, random: false, colors: [/* scheme colours */] },
-    },
-  });
-  // setGlobalConfig only affects future layout, so relayout existing roots:
+  await mmb.setGlobalConfig({ patch });                 // default for new maps
   const roots = mmb.getMindMapRoots();
-  if (roots.ok) for (const id of roots.data.rootIds) await mmb.refreshMapLayout(id);
+  if (roots.ok) for (const id of roots.data.rootIds)    // recolour existing maps
+    await mmb.setMapConfig({ patch, nodeId: id, relayout: true });
 }
 ```
 
 - The toggle is **only shown when `MindMapBuilderAPI.ready()`** — install nothing and you'll never see it.
+- `multicolor: true` + a **sequential** `customPalette` means **each branch takes the next colour** in the list (cycling) — so a branch gets a *different* colour, not all the same.
 - Colours come from the scheme's accents (or your custom picker's stroke list), with `transparent` / `black` / `white` dropped.
-- Existing maps are relaid out immediately; if no map exists yet, the palette is stored and applies to new/relaid branches.
+- **Apply with nothing selected on the canvas** — selecting the map first would recolour every element the same (the normal stroke/fill apply); the MindMap path does the per-branch colouring for you.
 
 ## Categories
 
