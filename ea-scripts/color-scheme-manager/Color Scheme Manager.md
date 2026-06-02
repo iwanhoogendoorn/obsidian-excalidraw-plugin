@@ -232,6 +232,14 @@ ensurePresets();
     if (!s.category) {
       s.category = catByName.get(s.name.toLowerCase()) || "Custom";
       changed = true;
+    } else {
+      // Heal malformed categories from older imports (e.g. one that swallowed
+      // following comment lines): keep only the first line, cut at any '#'.
+      const clean = String(s.category).split(/[#\n\r]/)[0].trim();
+      if (clean !== s.category) {
+        s.category = clean || "Custom";
+        changed = true;
+      }
     }
   }
   if (changed) saveSchemes();
