@@ -627,17 +627,23 @@ async function applyToMindMap(scheme) {
       return false;
     }
 
-    // Recolour EXISTING maps: a per-map config patch with relayout actually
-    // repaints each map's branches with the palette (global alone only affects
-    // future layout). No canvas selection needed.
+    // Recolour EXISTING maps. multicolor is a MAP-level setting and branch
+    // colours are (re)assigned when the map is rebuilt — a plain relayout only
+    // moved the root. So per root: enable multicolor on the map, select it, and
+    // run the REARRANGE action (full rebuild) which fans the palette across
+    // every branch. No canvas selection by the user is needed.
     let recoloured = 0;
     try {
       const rootsRes = typeof mmb.getMindMapRoots === "function" ? mmb.getMindMapRoots() : null;
       const rootIds = rootsRes && rootsRes.ok ? rootsRes.data.rootIds || [] : [];
       for (const rootId of rootIds) {
-        let r;
         if (typeof mmb.setMapConfig === "function") {
-          r = await mmb.setMapConfig({ patch, nodeId: rootId, relayout: true });
+          await mmb.setMapConfig({ nodeId: rootId, patch, relayout: false });
+        }
+        if (typeof mmb.selectNode === "function") mmb.selectNode(rootId);
+        let r;
+        if (mmb.Actions && mmb.Actions.REARRANGE && typeof mmb.performAction === "function") {
+          r = await mmb.performAction(mmb.Actions.REARRANGE);
         } else if (typeof mmb.refreshMapLayout === "function") {
           r = await mmb.refreshMapLayout(rootId);
         }
