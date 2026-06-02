@@ -1640,10 +1640,10 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
 
     new ea.obsidian.ButtonComponent(actions)
       .setButtonText("Import")
-      .setTooltip("Create a scheme/theme from pasted colours or a .txt file (e.g. an edited Sample format)")
+      .setTooltip("Create a scheme/theme from pasted colours or a .txt / .json file (e.g. an edited Sample format, or an exported palette)")
       .onClick(async () => {
         const how = await utils.suggester(
-          ["📋  Paste colours", "📄  Open a .txt file…"],
+          ["📋  Paste colours", "📄  Open a .txt / .json file…"],
           ["paste", "file"],
           "Import colours from…"
         );
