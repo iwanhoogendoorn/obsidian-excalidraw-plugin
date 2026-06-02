@@ -161,6 +161,8 @@ If the **[MindMap Builder](https://github.com/zsviczian/obsidian-excalidraw-plug
 
 When its API is available, the panel shows a **MindMap mode** toggle. **This toggle only appears if the MindMap Builder script is installed and its API is ready** (`window.MindMapBuilderAPI.ready()`) — with the MindMap script absent, nothing shows and the panel stays clean for standalone use.
 
+![Image](cpmm.png)
+
 - **MindMap mode OFF** — standalone behaviour: clicking a scheme recolours the selection / sets the active colour as usual; the mind map is untouched.
 - **MindMap mode ON** — clicking any scheme recolours the **entire active map**, giving **each first-level branch (and its connector line + subtree) a different colour** from the scheme's palette. **No canvas selection needed**, and it does *not* uniformly repaint everything.
 
