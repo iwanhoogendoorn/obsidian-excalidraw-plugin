@@ -629,32 +629,57 @@ async function applyToMindMap(scheme) {
     return false;
   }
 
-  // Map each element id to a colour: every FIRST-LEVEL branch (and its whole
-  // subtree) gets the next palette colour, cycling; the root/centre gets the
-  // scheme's primary stroke. We read structure from the MindMap Builder API,
-  // then recolour directly with ExcalidrawAutomate (reliable, no rebuild).
+  // Map each element id to a colour:
+  //   - the centre/root node  -> the scheme's primary stroke
+  //   - each first-level branch (its whole subtree) -> the next palette colour
+  //   - each connector line    -> the colour of the branch it points into
+  // Structure comes from the MindMap Builder API; the recolour is done directly
+  // with ExcalidrawAutomate (reliable, no rebuild).
+  const rootColor = scheme.stroke || colors[0];
   const idColor = new Map();
   let branchCount = 0;
+  const byId = new Map(ea.getViewElements().map((el) => [el.id, el]));
   try {
     for (const root of rootIds) {
+      // The root id from getMindMapRoots IS the centre node element.
+      idColor.set(root, rootColor);
+
       const roles = mmb.getElementIdsByRole(root);
       const nodeIds = roles && roles.ok ? roles.data.nodes || [] : [];
-      const firstLevel = [];
-      let rootNode = null;
+      const branchArrows = roles && roles.ok ? roles.data.branchArrows || [] : [];
+
+      // First-level branches (depth 1): assign each a palette colour and paint
+      // its whole subtree (nodes + inner arrows + texts) that colour.
+      let i = 0;
       for (const nid of nodeIds) {
         const info = mmb.getMapInfo(nid);
-        if (!info || !info.ok) continue;
-        if (info.data.depth === 0) rootNode = nid;
-        else if (info.data.depth === 1) firstLevel.push(nid);
-      }
-      firstLevel.forEach((bid, i) => {
+        if (!info || !info.ok || info.data.depth !== 1) continue;
         const color = colors[i % colors.length];
+        i++;
         branchCount++;
-        const br = mmb.getBranchElementIds({ nodeId: bid, includeDecorations: true, includeCrosslinks: false });
+        const br = mmb.getBranchElementIds({ nodeId: nid, includeDecorations: true, includeCrosslinks: false });
         const ids = br && br.ok ? br.data.ids || [] : [];
         for (const id of ids) idColor.set(id, color);
-      });
-      if (rootNode) idColor.set(rootNode, scheme.stroke || colors[0]);
+      }
+
+      // Connector lines: colour each arrow by the branch it connects to. Use the
+      // arrow's bindings; prefer the non-root (child) endpoint so the line INTO a
+      // branch takes the branch colour rather than the centre's colour.
+      for (const arrowId of branchArrows) {
+        if (idColor.has(arrowId)) continue;
+        const el = byId.get(arrowId);
+        if (!el) continue;
+        const ends = [
+          el.endBinding && el.endBinding.elementId,
+          el.startBinding && el.startBinding.elementId,
+        ];
+        let chosen = null;
+        for (const ep of ends) {
+          if (ep && idColor.has(ep) && idColor.get(ep) !== rootColor) { chosen = idColor.get(ep); break; }
+        }
+        if (!chosen) for (const ep of ends) if (ep && idColor.has(ep)) { chosen = idColor.get(ep); break; }
+        if (chosen) idColor.set(arrowId, chosen);
+      }
     }
   } catch (e) {
     console.error("Color Scheme Manager: reading mind map structure failed", e);
