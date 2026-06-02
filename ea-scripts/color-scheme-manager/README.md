@@ -92,6 +92,10 @@ There are three ways to add a scheme — each one then prompts you for a categor
 
 Click **Sample format** in the panel to download a ready-to-edit template (`color-scheme-import-sample.txt`). Then **Import** lets you either **📋 paste** the colours or **📄 open a `.txt` / `.json` file** (e.g. the template you just edited, or a saved palette file) — both run through the same parser. There are **three formats** you can use.
 
+Ready-made example files in this folder (download → **Import → Open a .txt / .json file…**):
+- [`sample-color-scheme-import.txt`](sample-color-scheme-import.txt) — labelled STROKE/FILL format (Option B)
+- [`sample-color-palette-appstate.json`](sample-color-palette-appstate.json) — raw appState palette (Option C)
+
 <img src="import-txt-json.png" width="75%">
 
 **Stroke / Fill / Canvas** map to Excalidraw's three colour pickers. In this script the **canvas background is always white and not editable**, so you only ever define **stroke** and **fill**. Each picker grid holds up to **15 swatches = 3 rows × 5 columns** (the first 5 you list are row 1, the next 5 row 2, the next 5 row 3), and every swatch gets an automatic light→dark shade ramp.
@@ -110,6 +114,8 @@ Paste a single list; the script derives stroke and fill for you.
 ```
 
 #### Option B — Full control (labelled stroke + fill)
+
+📥 **Ready-made example:** [`sample-color-scheme-import.txt`](sample-color-scheme-import.txt) — download it, then **Import → 📄 Open a .txt / .json file…** and pick it.
 
 Label each picker explicitly. `STROKE:` and `FILL:` take up to 15 colours each (3×5); `TOPPICKS_*` are the 5 quick swatches shown before the grid opens (optional). `NAME:` and `CATEGORY:` are optional (you'll be prompted if omitted).
 
@@ -135,6 +141,8 @@ TOPPICKS_FILL: transparent E5E9F0 F4C7C3 CFE8CF F7ECC9
 ```
 
 #### Option C — Raw appState palette (JSON)
+
+📥 **Ready-made example:** [`sample-color-palette-appstate.json`](sample-color-palette-appstate.json) — download it, then **Import → 📄 Open a .txt / .json file…** and pick it.
 
 For maximum fidelity you can paste/import a raw Excalidraw **`colorPalette`** object straight from a drawing's `appState` — either the bare palette or an object with a `colorPalette` key. It's loaded **verbatim**: every swatch keeps its exact shade ramp and the `topPicks` rows are preserved, with no regeneration.
 
