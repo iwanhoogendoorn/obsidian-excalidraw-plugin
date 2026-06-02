@@ -958,7 +958,7 @@ function pickTextFile() {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".txt,.md,.csv,text/plain";
+    input.accept = ".txt,.md,.csv,.json,text/plain,application/json";
     input.style.display = "none";
     let settled = false;
     const finish = (val) => {
