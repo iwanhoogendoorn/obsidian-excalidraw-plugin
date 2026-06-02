@@ -92,6 +92,8 @@ There are three ways to add a scheme — each one then prompts you for a categor
 
 Click **Sample format** in the panel to download a ready-to-edit template (`color-scheme-import-sample.txt`). Then **Import** lets you either **📋 paste** the colours or **📄 open a `.txt` / `.json` file** (e.g. the template you just edited, or a saved palette file) — both run through the same parser. There are **three formats** you can use.
 
+<img src="import-txt-json.png" width="40%">
+
 **Stroke / Fill / Canvas** map to Excalidraw's three colour pickers. In this script the **canvas background is always white and not editable**, so you only ever define **stroke** and **fill**. Each picker grid holds up to **15 swatches = 3 rows × 5 columns** (the first 5 you list are row 1, the next 5 row 2, the next 5 row 3), and every swatch gets an automatic light→dark shade ramp.
 
 Hex is 6 digits, the leading `#` is optional, and `transparent` / `black` / `white` are allowed as names.
