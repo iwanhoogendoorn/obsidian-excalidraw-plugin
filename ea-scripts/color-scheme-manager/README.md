@@ -155,6 +155,28 @@ The canvas background always stays white.
 
 > Tip: the labelled **Import** format (Option B above) writes the same spec — the editor is just the visual way to do it.
 
+## MindMap Builder integration
+
+If the **[MindMap Builder](https://github.com/zsviczian/obsidian-excalidraw-plugin)** script (v26.06.02+) is also installed, you can recolour your mind maps straight from here. When its API is available, each scheme row shows an extra **git-fork** button — click it to push that scheme's colours into MindMap Builder's sequential branch palette.
+
+Under the hood it calls the MindMap Builder API:
+
+```js
+const mmb = window.MindMapBuilderAPI;
+if (mmb?.ready()) {
+  await mmb.setGlobalConfig({
+    patch: {
+      multicolor: true,
+      customPalette: { enabled: true, random: false, colors: [/* scheme colours */] },
+    },
+  });
+}
+```
+
+- The button is **only shown when the MindMap Builder API is ready** — if that script isn't installed, nothing appears.
+- Colours come from the scheme's accents (or your custom picker's stroke list), with `transparent` / `black` / `white` dropped.
+- After applying, new/relaid-out branches use the scheme's colours sequentially.
+
 ## Categories
 
 - The **Category** dropdown at the top filters which schemes are shown.

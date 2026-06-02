@@ -560,6 +560,67 @@ function autoBases(scheme) {
   };
 }
 
+// ------------------------------------------------------------------
+// MindMap Builder integration (optional — only when that script is installed
+// and its API is ready). https://github.com/zsviczian/obsidian-excalidraw-plugin
+// docs/ea-script-docs/MindMapBuilderAPI.md
+// ------------------------------------------------------------------
+function mmbReady() {
+  try {
+    const mmb = window.MindMapBuilderAPI;
+    return !!(mmb && typeof mmb.ready === "function" && mmb.ready());
+  } catch (e) {
+    return false;
+  }
+}
+
+// The ordered list of real colours a scheme contributes to a mind map's
+// sequential branch palette (anchors transparent/black/white are dropped).
+function schemeMindmapColors(scheme) {
+  let src;
+  if (scheme.picker && scheme.picker.stroke && scheme.picker.stroke.length) src = scheme.picker.stroke;
+  else if (scheme.accents && scheme.accents.length) src = scheme.accents;
+  else src = autoBases(scheme).stroke;
+  const out = [];
+  const seen = new Set();
+  for (const c of src) {
+    if (!c) continue;
+    const k = String(c).toLowerCase();
+    if (k === "transparent" || k === "black" || k === "white" || seen.has(k)) continue;
+    seen.add(k);
+    out.push(c);
+  }
+  return out.length ? out : [scheme.stroke || "#1e1e1e"];
+}
+
+// Push a scheme's colours into the MindMap Builder's custom branch palette.
+async function applyToMindMap(scheme) {
+  const mmb = window.MindMapBuilderAPI;
+  if (!mmbReady()) {
+    new Notice("MindMap Builder API is not available. Install/update the MindMap Builder script.");
+    return;
+  }
+  const colors = schemeMindmapColors(scheme);
+  try {
+    const res = await mmb.setGlobalConfig({
+      patch: {
+        multicolor: true,
+        customPalette: { enabled: true, random: false, colors },
+      },
+    });
+    if (res && res.ok) {
+      new Notice(`Applied "${scheme.name}" to MindMap Builder (${colors.length} branch colours).`);
+    } else {
+      const msg = (res && res.error && res.error.message) || "unknown error";
+      console.error("MindMap Builder setGlobalConfig failed:", res);
+      new Notice("MindMap Builder update failed: " + msg);
+    }
+  } catch (e) {
+    console.error("Color Scheme Manager: applyToMindMap failed", e);
+    new Notice("MindMap Builder update threw — see console.");
+  }
+}
+
 // Parse the structured import format (NAME/CATEGORY/STROKE/FILL/TOPPICKS_* keys).
 // Returns null if no section keys are present (so the caller falls back to the
 // simple flat hex-list import).
@@ -1038,6 +1099,14 @@ function renderRow(contentEl, scheme, index) {
     .setIcon("sliders-horizontal")
     .setTooltip("Customize picker (hand-pick colours & order)")
     .onClick(() => new PickerEditor(scheme).open());
+
+  // Apply to MindMap Builder — only shown when that script's API is available.
+  if (mmbReady()) {
+    new ea.obsidian.ButtonComponent(row)
+      .setIcon("git-fork")
+      .setTooltip("Apply this scheme's colours to MindMap Builder")
+      .onClick(() => applyToMindMap(scheme));
+  }
 
   // Rename / recategorize.
   new ea.obsidian.ButtonComponent(row)
