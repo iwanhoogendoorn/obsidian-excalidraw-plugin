@@ -606,62 +606,83 @@ function schemeMindmapColors(scheme) {
 // Push a scheme's colours into the MindMap Builder's custom branch palette.
 async function applyToMindMap(scheme) {
   const mmb = window.MindMapBuilderAPI;
-  if (!mmbReady()) {
-    new Notice("MindMap Builder API is not available. Install/update the MindMap Builder script.");
-    return;
+  if (!mmbReady() || !ea.targetView) {
+    new Notice("MindMap Builder API is not available.");
+    return false;
   }
   const colors = schemeMindmapColors(scheme);
-  // multicolor + a sequential customPalette => each branch takes the NEXT colour
-  // in the list (not all the same). random:false keeps it deterministic.
-  const patch = {
-    multicolor: true,
-    customPalette: { enabled: true, random: false, colors },
-  };
+
+  // Best-effort: also set the global palette so newly-added branches stay on
+  // theme (non-fatal if it fails).
   try {
-    // Global config: the default for new maps + refreshes the sidepanel UI.
-    const gRes = await mmb.setGlobalConfig({ patch });
-    if (!gRes || !gRes.ok) {
-      const msg = (gRes && gRes.error && gRes.error.message) || "unknown error";
-      console.error("MindMap Builder setGlobalConfig failed:", gRes);
-      new Notice("MindMap Builder update failed: " + msg);
+    await mmb.setGlobalConfig({
+      patch: { multicolor: true, customPalette: { enabled: true, random: false, colors } },
+    });
+  } catch (e) {
+    /* non-fatal */
+  }
+
+  const rootsRes = typeof mmb.getMindMapRoots === "function" ? mmb.getMindMapRoots() : null;
+  const rootIds = rootsRes && rootsRes.ok ? rootsRes.data.rootIds || [] : [];
+  if (!rootIds.length) {
+    new Notice("No mind map found on this canvas.");
+    return false;
+  }
+
+  // Map each element id to a colour: every FIRST-LEVEL branch (and its whole
+  // subtree) gets the next palette colour, cycling; the root/centre gets the
+  // scheme's primary stroke. We read structure from the MindMap Builder API,
+  // then recolour directly with ExcalidrawAutomate (reliable, no rebuild).
+  const idColor = new Map();
+  let branchCount = 0;
+  try {
+    for (const root of rootIds) {
+      const roles = mmb.getElementIdsByRole(root);
+      const nodeIds = roles && roles.ok ? roles.data.nodes || [] : [];
+      const firstLevel = [];
+      let rootNode = null;
+      for (const nid of nodeIds) {
+        const info = mmb.getMapInfo(nid);
+        if (!info || !info.ok) continue;
+        if (info.data.depth === 0) rootNode = nid;
+        else if (info.data.depth === 1) firstLevel.push(nid);
+      }
+      firstLevel.forEach((bid, i) => {
+        const color = colors[i % colors.length];
+        branchCount++;
+        const br = mmb.getBranchElementIds({ nodeId: bid, includeDecorations: true, includeCrosslinks: false });
+        const ids = br && br.ok ? br.data.ids || [] : [];
+        for (const id of ids) idColor.set(id, color);
+      });
+      if (rootNode) idColor.set(rootNode, scheme.stroke || colors[0]);
+    }
+  } catch (e) {
+    console.error("Color Scheme Manager: reading mind map structure failed", e);
+  }
+
+  if (!idColor.size) {
+    new Notice("Couldn't read the mind map structure to recolour it (see console).");
+    return false;
+  }
+
+  try {
+    ea.clear();
+    const targets = ea.getViewElements().filter((el) => idColor.has(el.id));
+    if (!targets.length) {
+      new Notice("Mind map elements not found on the canvas to recolour.");
       return false;
     }
-
-    // Recolour EXISTING maps. multicolor is a MAP-level setting and branch
-    // colours are (re)assigned when the map is rebuilt — a plain relayout only
-    // moved the root. So per root: enable multicolor on the map, select it, and
-    // run the REARRANGE action (full rebuild) which fans the palette across
-    // every branch. No canvas selection by the user is needed.
-    let recoloured = 0;
-    try {
-      const rootsRes = typeof mmb.getMindMapRoots === "function" ? mmb.getMindMapRoots() : null;
-      const rootIds = rootsRes && rootsRes.ok ? rootsRes.data.rootIds || [] : [];
-      for (const rootId of rootIds) {
-        if (typeof mmb.setMapConfig === "function") {
-          await mmb.setMapConfig({ nodeId: rootId, patch, relayout: false });
-        }
-        if (typeof mmb.selectNode === "function") mmb.selectNode(rootId);
-        let r;
-        if (mmb.Actions && mmb.Actions.REARRANGE && typeof mmb.performAction === "function") {
-          r = await mmb.performAction(mmb.Actions.REARRANGE);
-        } else if (typeof mmb.refreshMapLayout === "function") {
-          r = await mmb.refreshMapLayout(rootId);
-        }
-        if (r && r.ok) recoloured++;
-      }
-    } catch (e) {
-      console.error("Color Scheme Manager: per-map recolour failed", e);
+    ea.copyViewElementsToEAforEditing(targets);
+    for (const el of ea.getElements()) {
+      const c = idColor.get(el.id);
+      if (c) el.strokeColor = c;
     }
-
-    new Notice(
-      recoloured
-        ? `Recoloured ${recoloured} mind map(s) with "${scheme.name}" — ${colors.length} colours, one per branch.`
-        : `MindMap palette set to "${scheme.name}". Add or relayout nodes to apply (no existing map found).`
-    );
+    await ea.addElementsToView(false, false);
+    new Notice(`Recoloured ${branchCount} mind map branch(es) across ${colors.length} colours.`);
     return true;
   } catch (e) {
-    console.error("Color Scheme Manager: applyToMindMap failed", e);
-    new Notice("MindMap Builder update threw — see console.");
+    console.error("Color Scheme Manager: mind map recolour apply failed", e);
+    new Notice("Mind map recolour failed — see console.");
     return false;
   }
 }
@@ -823,33 +844,45 @@ async function applyScheme(scheme) {
   }
   const api = ea.getExcalidrawAPI();
 
-  ea.clear();
-  const selected = ea.getViewSelectedElements();
+  // MindMap mode: when the toggle is on and the MindMap Builder API is present,
+  // recolour the whole map per-branch and DON'T uniformly recolour the
+  // selection (which would paint everything one colour).
+  const mmbMode = mmbSync && mmbReady();
 
-  if (selected.length > 0) {
-    // Recolor the selected elements.
-    ea.copyViewElementsToEAforEditing(selected);
-    for (const el of ea.getElements()) {
-      el.strokeColor = scheme.stroke;
-      if (FILLABLE.includes(el.type)) el.backgroundColor = scheme.fill;
-    }
-    await ea.addElementsToView(false, false);
-    // Canvas background is left untouched (always white, never themed).
-  } else {
-    // Nothing selected — set the active color for the next drawn elements.
+  if (mmbMode) {
+    // Set active colour for any new shapes, but leave existing elements to the
+    // per-branch recolour below.
     api.updateScene({
-      appState: {
-        currentItemStrokeColor: scheme.stroke,
-        currentItemBackgroundColor: scheme.fill,
-      },
+      appState: { currentItemStrokeColor: scheme.stroke, currentItemBackgroundColor: scheme.fill },
     });
+  } else {
+    ea.clear();
+    const selected = ea.getViewSelectedElements();
+    if (selected.length > 0) {
+      // Recolor the selected elements (uniform stroke/fill).
+      ea.copyViewElementsToEAforEditing(selected);
+      for (const el of ea.getElements()) {
+        el.strokeColor = scheme.stroke;
+        if (FILLABLE.includes(el.type)) el.backgroundColor = scheme.fill;
+      }
+      await ea.addElementsToView(false, false);
+      // Canvas background is left untouched (always white, never themed).
+    } else {
+      // Nothing selected — set the active color for the next drawn elements.
+      api.updateScene({
+        appState: {
+          currentItemStrokeColor: scheme.stroke,
+          currentItemBackgroundColor: scheme.fill,
+        },
+      });
+    }
   }
 
   // Refresh the native picker: explicit picker spec > theme accents > analogous.
   loadPaletteToPicker(buildSchemePalette(scheme));
 
-  // Optionally recolour the active MindMap Builder map too.
-  if (mmbSync && mmbReady()) applyToMindMap(scheme);
+  // MindMap mode: recolour the whole map, each branch a different palette colour.
+  if (mmbMode) await applyToMindMap(scheme);
 
   // Mark this scheme active and refresh the panel so the indicator updates.
   setActive(scheme.name);
