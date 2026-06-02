@@ -584,23 +584,50 @@ function mmbReady() {
   }
 }
 
-// The ordered list of real colours a scheme contributes to a mind map's
-// sequential branch palette (anchors transparent/black/white are dropped).
+// The list of real colours a scheme contributes to a mind map's branch palette
+// (anchors transparent/black/white dropped), REORDERED so consecutive branches
+// look as different as possible. Many themes list their accents hue-adjacent
+// (e.g. several blues in a row), which made neighbouring branches near-identical;
+// we sort by hue then interleave the two halves so each step jumps ~half the
+// colour wheel.
 function schemeMindmapColors(scheme) {
   let src;
   if (scheme.picker && scheme.picker.stroke && scheme.picker.stroke.length) src = scheme.picker.stroke;
   else if (scheme.accents && scheme.accents.length) src = scheme.accents;
   else src = autoBases(scheme).stroke;
-  const out = [];
+
+  // dedupe + drop anchors
+  const list = [];
   const seen = new Set();
   for (const c of src) {
     if (!c) continue;
     const k = String(c).toLowerCase();
     if (k === "transparent" || k === "black" || k === "white" || seen.has(k)) continue;
     seen.add(k);
-    out.push(c);
+    list.push(c);
   }
-  return out.length ? out : [scheme.stroke || "#1e1e1e"];
+  if (list.length <= 2) return list.length ? list : [scheme.stroke || "#1e1e1e"];
+
+  // sort by hue, then interleave halves for maximum adjacent contrast
+  const withHue = list.map((c) => {
+    let h = 0;
+    try {
+      const v = ea.getCM(c).hue;
+      if (typeof v === "number" && !Number.isNaN(v)) h = v;
+    } catch (e) {
+      /* keep 0 */
+    }
+    return { c, h };
+  });
+  withHue.sort((a, b) => a.h - b.h);
+  const n = withHue.length;
+  const half = Math.ceil(n / 2);
+  const out = [];
+  for (let k = 0; k < half; k++) {
+    out.push(withHue[k].c);
+    if (k + half < n) out.push(withHue[k + half].c);
+  }
+  return out;
 }
 
 // Push a scheme's colours into the MindMap Builder's custom branch palette.
