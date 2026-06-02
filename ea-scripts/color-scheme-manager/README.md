@@ -157,9 +157,11 @@ The canvas background always stays white.
 
 ## MindMap Builder integration
 
-If the **[MindMap Builder](https://github.com/zsviczian/obsidian-excalidraw-plugin)** script (v26.06.02+) is also installed, you can recolour your mind maps straight from here. When its API is available, each scheme row shows an extra **git-fork** button — click it to push that scheme's colours into MindMap Builder's sequential branch palette.
+If the **[MindMap Builder](https://github.com/zsviczian/obsidian-excalidraw-plugin)** script (v26.06.02+) is also installed, you can recolour your mind maps straight from here.
 
-Under the hood it calls the MindMap Builder API:
+When its API is available, the panel shows a **Recolour MindMap Builder** toggle (it's hidden entirely if the MindMap script isn't installed, so standalone use stays clean). Flip it on, then **clicking any scheme** also recolours the active mind map — no extra buttons or clicks.
+
+Under the hood it calls the MindMap Builder API and relayouts existing maps so they actually repaint:
 
 ```js
 const mmb = window.MindMapBuilderAPI;
@@ -170,12 +172,15 @@ if (mmb?.ready()) {
       customPalette: { enabled: true, random: false, colors: [/* scheme colours */] },
     },
   });
+  // setGlobalConfig only affects future layout, so relayout existing roots:
+  const roots = mmb.getMindMapRoots();
+  if (roots.ok) for (const id of roots.data.rootIds) await mmb.refreshMapLayout(id);
 }
 ```
 
-- The button is **only shown when the MindMap Builder API is ready** — if that script isn't installed, nothing appears.
+- The toggle is **only shown when `MindMapBuilderAPI.ready()`** — install nothing and you'll never see it.
 - Colours come from the scheme's accents (or your custom picker's stroke list), with `transparent` / `black` / `white` dropped.
-- After applying, new/relaid-out branches use the scheme's colours sequentially.
+- Existing maps are relaid out immediately; if no map exists yet, the palette is stored and applies to new/relaid branches.
 
 ## Categories
 

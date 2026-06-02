@@ -248,6 +248,16 @@ function setCategory(cat) {
   settings["Active category"] = { value: selectedCategory, description: "Internal: panel category filter." };
   ea.setScriptSettings(settings);
 }
+// When on (and the MindMap Builder API is present), applying a scheme also
+// recolours the active mind map. Persisted; the toggle only appears when the
+// MindMap Builder script is installed, so standalone use stays clutter-free.
+let mmbSync = settings["MindMap sync"] ? settings["MindMap sync"].value === true : false;
+function setMmbSync(on) {
+  mmbSync = !!on;
+  settings = ea.getScriptSettings();
+  settings["MindMap sync"] = { value: mmbSync, description: "Internal: also recolour MindMap Builder when applying a scheme." };
+  ea.setScriptSettings(settings);
+}
 // Ordered list of categories present in the current schemes, plus "All".
 function categoryList() {
   const present = new Set(schemes.map((s) => s.category || "Custom"));
@@ -608,16 +618,35 @@ async function applyToMindMap(scheme) {
         customPalette: { enabled: true, random: false, colors },
       },
     });
-    if (res && res.ok) {
-      new Notice(`Applied "${scheme.name}" to MindMap Builder (${colors.length} branch colours).`);
-    } else {
+    if (!res || !res.ok) {
       const msg = (res && res.error && res.error.message) || "unknown error";
       console.error("MindMap Builder setGlobalConfig failed:", res);
       new Notice("MindMap Builder update failed: " + msg);
+      return false;
     }
+    // setGlobalConfig only affects FUTURE layout, so relayout existing maps to
+    // actually repaint their branches with the new palette.
+    let relaid = 0;
+    try {
+      const rootsRes = typeof mmb.getMindMapRoots === "function" ? mmb.getMindMapRoots() : null;
+      const rootIds = rootsRes && rootsRes.ok ? rootsRes.data.rootIds || [] : [];
+      for (const rootId of rootIds) {
+        const r = await mmb.refreshMapLayout(rootId);
+        if (r && r.ok) relaid++;
+      }
+    } catch (e) {
+      console.error("Color Scheme Manager: refreshMapLayout failed", e);
+    }
+    new Notice(
+      relaid
+        ? `Recoloured ${relaid} mind map(s) with "${scheme.name}" (${colors.length} colours).`
+        : `MindMap palette set to "${scheme.name}". Add/relayout nodes to apply (no existing map found).`
+    );
+    return true;
   } catch (e) {
     console.error("Color Scheme Manager: applyToMindMap failed", e);
     new Notice("MindMap Builder update threw — see console.");
+    return false;
   }
 }
 
@@ -802,6 +831,9 @@ async function applyScheme(scheme) {
 
   // Refresh the native picker: explicit picker spec > theme accents > analogous.
   loadPaletteToPicker(buildSchemePalette(scheme));
+
+  // Optionally recolour the active MindMap Builder map too.
+  if (mmbSync && mmbReady()) applyToMindMap(scheme);
 
   // Mark this scheme active and refresh the panel so the indicator updates.
   setActive(scheme.name);
@@ -1100,14 +1132,6 @@ function renderRow(contentEl, scheme, index) {
     .setTooltip("Customize picker (hand-pick colours & order)")
     .onClick(() => new PickerEditor(scheme).open());
 
-  // Apply to MindMap Builder — only shown when that script's API is available.
-  if (mmbReady()) {
-    new ea.obsidian.ButtonComponent(row)
-      .setIcon("git-fork")
-      .setTooltip("Apply this scheme's colours to MindMap Builder")
-      .onClick(() => applyToMindMap(scheme));
-  }
-
   // Rename / recategorize.
   new ea.obsidian.ButtonComponent(row)
     .setIcon("pencil")
@@ -1196,6 +1220,18 @@ ea.createSidepanelTab("Color Schemes", false, true).then((tab) => {
           renderPanel();
         });
       });
+
+    // MindMap Builder sync — only shown when that script's API is available, so
+    // the panel stays clean for standalone use.
+    if (mmbReady()) {
+      new ea.obsidian.Setting(contentEl)
+        .setName("Recolour MindMap Builder")
+        .setDesc("Also apply the scheme's colours to the active mind map when you click it")
+        .addToggle((tg) => {
+          tg.setValue(mmbSync);
+          tg.onChange((v) => setMmbSync(v));
+        });
+    }
 
     // Special "Default" row — resets the picker to Excalidraw's defaults.
     const resetRow = contentEl.createDiv();
