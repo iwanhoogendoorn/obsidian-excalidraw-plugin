@@ -256,15 +256,12 @@ function setCategory(cat) {
   settings["Active category"] = { value: selectedCategory, description: "Internal: panel category filter." };
   ea.setScriptSettings(settings);
 }
-// When on (and the MindMap Builder API is present), applying a scheme also
-// recolours the active mind map. Persisted; the toggle only appears when the
-// MindMap Builder script is installed, so standalone use stays clutter-free.
-let mmbSync = settings["MindMap sync"] ? settings["MindMap sync"].value === true : false;
+// When on (and the MindMap Builder API is present), applying a scheme recolours
+// the active mind map per-branch. SESSION-ONLY and always starts OFF on each
+// script load (not persisted) — a deliberate, opt-in action each session.
+let mmbSync = false;
 function setMmbSync(on) {
   mmbSync = !!on;
-  settings = ea.getScriptSettings();
-  settings["MindMap sync"] = { value: mmbSync, description: "Internal: also recolour MindMap Builder when applying a scheme." };
-  ea.setScriptSettings(settings);
 }
 // Ordered list of categories present in the current schemes, plus "All".
 function categoryList() {
@@ -615,6 +612,29 @@ function mmbReady() {
   } catch (e) {
     return false;
   }
+}
+
+// All element ids that belong to a MindMap Builder map on this canvas. Used to
+// LEAVE the mind map untouched when MindMap mode is OFF (the plugin keeps the
+// root node selected, which would otherwise get caught by the selection recolour).
+function mindmapElementIds() {
+  const ids = new Set();
+  if (!mmbReady()) return ids;
+  try {
+    const mmb = window.MindMapBuilderAPI;
+    const rootsRes = typeof mmb.getMindMapRoots === "function" ? mmb.getMindMapRoots() : null;
+    const rootIds = rootsRes && rootsRes.ok ? rootsRes.data.rootIds || [] : [];
+    for (const root of rootIds) {
+      ids.add(root);
+      if (typeof mmb.getProjectElementIds === "function") {
+        const r = mmb.getProjectElementIds(root);
+        if (r && r.ok) for (const id of r.data.ids || []) ids.add(id);
+      }
+    }
+  } catch (e) {
+    console.error("Color Scheme Manager: mindmapElementIds failed", e);
+  }
+  return ids;
 }
 
 // The list of real colours a scheme contributes to a mind map's branch palette
@@ -1155,7 +1175,10 @@ async function applyScheme(scheme) {
     });
   } else {
     ea.clear();
-    const selected = ea.getViewSelectedElements();
+    // MindMap mode OFF -> never touch mind map elements, even if the plugin has
+    // the root node selected. Exclude them from the selection recolour.
+    const mmIds = mindmapElementIds();
+    const selected = ea.getViewSelectedElements().filter((el) => !mmIds.has(el.id));
     if (selected.length > 0) {
       // Recolor the selected elements (uniform stroke/fill).
       ea.copyViewElementsToEAforEditing(selected);

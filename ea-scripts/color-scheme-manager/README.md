@@ -193,11 +193,11 @@ The canvas background always stays white.
 
 If the **[MindMap Builder](https://github.com/zsviczian/obsidian-excalidraw-plugin)** script (v26.06.02+) is also installed, you can recolour your mind maps straight from here.
 
-When its API is available, the panel shows a **MindMap mode** toggle. **This toggle only appears if the MindMap Builder script is installed and its API is ready** (`window.MindMapBuilderAPI.ready()`) — with the MindMap script absent, nothing shows and the panel stays clean for standalone use.
+When its API is available, the panel shows a **MindMap mode** toggle. **This toggle only appears if the MindMap Builder script is installed and its API is ready** (`window.MindMapBuilderAPI.ready()`) — with the MindMap script absent, nothing shows and the panel stays clean for standalone use. It **always starts OFF** on each script load (it isn't persisted) — recolouring a mind map is a deliberate, opt-in action.
 
 <img src="cpmm.png" width="40%">
 
-- **MindMap mode OFF** — standalone behaviour: clicking a scheme recolours the selection / sets the active colour as usual; the mind map is untouched.
+- **MindMap mode OFF** — standalone behaviour: clicking a scheme recolours your selection / sets the active colour as usual. Mind map elements are **always left untouched**, even if the MindMap plugin keeps the root node selected (they're excluded from the selection recolour).
 - **MindMap mode ON** — clicking any scheme recolours the **entire active map**, giving **each first-level branch (and its connector line + subtree) a different colour** from the scheme's palette. **No canvas selection needed**, and it does *not* uniformly repaint everything.
 
 A notice is shown only when you flip the toggle on/off — recolouring on each theme change is silent.
