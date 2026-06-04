@@ -1,5 +1,7 @@
 # Linear Calendar Generator (Obsidian Excalidraw Script)
 
+> ✅ **Now part of the official Excalidraw Script Engine library!** You can install it straight from the plugin's script store. Merged into [zsviczian/obsidian-excalidraw-plugin](https://github.com/zsviczian/obsidian-excalidraw-plugin) (see the [script index](https://github.com/zsviczian/obsidian-excalidraw-plugin/blob/master/ea-scripts/index-new.md#linear-calendar-generator)).
+
 ![Obsidian](https://img.shields.io/badge/Obsidian-483699?style=for-the-badge\&logo=obsidian\&logoColor=white)
 ![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?style=for-the-badge\&logo=excalidraw\&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge\&logo=javascript\&logoColor=000000)
