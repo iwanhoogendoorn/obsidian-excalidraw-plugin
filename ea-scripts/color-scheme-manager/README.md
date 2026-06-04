@@ -21,17 +21,25 @@ An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/
 
 ## Installation
 
-1. Copy `Color Scheme Manager.md` to your Excalidraw scripts folder:
-   ```
-   .obsidian/plugins/obsidian-excalidraw-plugin/scripts/
-   ```
-   (or your configured Excalidraw *Scripts folder*)
-
-2. Restart Obsidian or reload the Excalidraw plugin
-
-3. The script will appear in the Excalidraw scripts menu
-
 > Requires Excalidraw plugin **2.19.1** or higher.
+
+There are two ways to install — pick whichever you like.
+
+### Option 1 — Official Script Library (recommended)
+
+Now that the script is part of the official library, install it from inside Obsidian — no files to copy:
+
+1. Open any Excalidraw drawing.
+2. Run **`Excalidraw: Install or update an Excalidraw script`** from the Command Palette (or use the Script Engine menu in Excalidraw).
+3. Find **Color Scheme Manager** in the list and install it.
+
+It's saved to your `Downloaded` scripts subfolder and appears in the scripts menu right away — and you can update it later from the same dialog.
+
+### Option 2 — Manual
+
+1. Download [`Color Scheme Manager.md`](Color%20Scheme%20Manager.md) and place it in your Excalidraw **Scripts folder** (set in the Excalidraw plugin settings).
+2. Restart Obsidian or reload the Excalidraw plugin.
+3. The script appears in the Excalidraw scripts menu.
 
 ## Usage
 
