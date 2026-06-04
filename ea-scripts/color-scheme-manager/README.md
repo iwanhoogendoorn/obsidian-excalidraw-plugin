@@ -1,5 +1,7 @@
 # Color Scheme Manager - Excalidraw Script
 
+> ✅ **Now part of the official Excalidraw Script Engine library!** You can install it straight from the plugin's script store — no manual copying needed. Merged into [zsviczian/obsidian-excalidraw-plugin](https://github.com/zsviczian/obsidian-excalidraw-plugin) (see the [script index](https://github.com/zsviczian/obsidian-excalidraw-plugin/blob/master/ea-scripts/index-new.md#color-scheme-manager)).
+
 An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/Fill** colour palettes of the active drawing between named, categorized themes — on the fly, from a docked side panel. Comes with a large built-in library (Cloud Providers, Code Editors, Tech Brands, Design Systems, and more) and lets you create or import your own.
 
 ![Video](Color%20Scheme%20Manager.gif)
