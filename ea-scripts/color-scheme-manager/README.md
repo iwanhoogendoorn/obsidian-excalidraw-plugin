@@ -37,9 +37,10 @@ It's saved to your `Downloaded` scripts subfolder and appears in the scripts men
 
 ### Option 2 — Manual
 
-1. Download [`Color Scheme Manager.md`](Color%20Scheme%20Manager.md) and place it in your Excalidraw **Scripts folder** (set in the Excalidraw plugin settings).
-2. Restart Obsidian or reload the Excalidraw plugin.
-3. The script appears in the Excalidraw scripts menu.
+1. Download [`Color Scheme Manager.md`](Color%20Scheme%20Manager.md) (the script) and place it in your Excalidraw **Scripts folder** (set in the Excalidraw plugin settings).
+2. *(Optional)* Also download [`Color Scheme Manager.svg`](Color%20Scheme%20Manager.svg) into the same folder — it's only the **icon** shown next to the script; the script runs fine without it.
+3. Restart Obsidian or reload the Excalidraw plugin.
+4. The script appears in the Excalidraw scripts menu.
 
 ## Usage
 
