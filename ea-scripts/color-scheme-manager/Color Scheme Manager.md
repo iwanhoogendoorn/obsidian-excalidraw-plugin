@@ -684,6 +684,48 @@ function schemeMindmapColors(scheme) {
   return out;
 }
 
+// Grow `base` to at least `n` DISTINCT colours so every branch can be unique
+// even when a map has more branches than the theme has colours. Extra colours
+// are derived in-theme: first lighter/darker tonal variants of the base colours,
+// then hue rotations as a last resort.
+function expandPalette(base, n) {
+  const out = [];
+  const seen = new Set();
+  const add = (c) => {
+    if (!c) return;
+    const k = String(c).toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(c);
+  };
+  base.forEach(add);
+  if (out.length >= n) return out;
+
+  const hex = (c, mutate) => {
+    try {
+      return mutate(ea.getCM(c)).stringHEX({ alpha: false });
+    } catch (e) {
+      return null;
+    }
+  };
+  // tonal variants
+  for (const off of [26, -26, 46, -46, 14, -14, 60, -60]) {
+    if (out.length >= n) break;
+    for (const c of base) {
+      if (out.length >= n) break;
+      add(hex(c, (cm) => cm.lightnessTo(Math.max(12, Math.min(92, cm.lightness + off)))));
+    }
+  }
+  // hue rotations
+  for (let deg = 18; out.length < n && deg < 360; deg += 18) {
+    for (const c of base) {
+      if (out.length >= n) break;
+      add(hex(c, (cm) => cm.hueBy(deg)));
+    }
+  }
+  return out;
+}
+
 // Push a scheme's colours into the MindMap Builder's custom branch palette.
 async function applyToMindMap(scheme) {
   // Silent on apply — the only user-facing message is the toggle on/off notice.
@@ -728,19 +770,22 @@ async function applyToMindMap(scheme) {
       const nodeIds = roles && roles.ok ? roles.data.nodes || [] : [];
       const branchArrows = roles && roles.ok ? roles.data.branchArrows || [] : [];
 
-      // First-level branches (depth 1): assign each a palette colour and paint
-      // its whole subtree (nodes + inner arrows + texts) that colour.
-      let i = 0;
+      // First-level branches (depth 1). Gather them first, then expand the
+      // palette to the branch count so EACH branch gets a UNIQUE colour (no
+      // cycling/reuse when a map has more branches than the theme has colours).
+      const firstLevel = [];
       for (const nid of nodeIds) {
         const info = mmb.getMapInfo(nid);
-        if (!info || !info.ok || info.data.depth !== 1) continue;
-        const color = colors[i % colors.length];
-        i++;
+        if (info && info.ok && info.data.depth === 1) firstLevel.push(nid);
+      }
+      const palette = expandPalette(colors, firstLevel.length);
+      firstLevel.forEach((nid, idx) => {
+        const color = palette[idx % palette.length];
         branchCount++;
         const br = mmb.getBranchElementIds({ nodeId: nid, includeDecorations: true, includeCrosslinks: false });
         const ids = br && br.ok ? br.data.ids || [] : [];
         for (const id of ids) idColor.set(id, color);
-      }
+      });
 
       // Connector lines: colour each arrow by the branch it connects to. Use the
       // arrow's bindings; prefer the non-root (child) endpoint so the line INTO a
