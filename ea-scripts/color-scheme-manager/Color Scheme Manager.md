@@ -684,43 +684,46 @@ function schemeMindmapColors(scheme) {
   return out;
 }
 
-// Grow `base` to at least `n` DISTINCT colours so every branch can be unique
-// even when a map has more branches than the theme has colours. Extra colours
-// are derived in-theme: first lighter/darker tonal variants of the base colours,
-// then hue rotations as a last resort.
-function expandPalette(base, n) {
-  const out = [];
-  const seen = new Set();
-  const add = (c) => {
-    if (!c) return;
-    const k = String(c).toLowerCase();
-    if (seen.has(k)) return;
-    seen.add(k);
-    out.push(c);
-  };
-  base.forEach(add);
-  if (out.length >= n) return out;
-
-  const hex = (c, mutate) => {
+// Generate `n` MAXIMALLY DISTINCT branch colours for a scheme. Colours are
+// spaced evenly around the hue wheel (so no two branches look alike), using the
+// theme's most-saturated accent for the saturation/lightness "feel" and as the
+// starting hue. For (near-)greyscale themes there is no hue to spread, so we
+// fall back to evenly spaced light→dark steps instead.
+function distinctBranchColors(scheme, n) {
+  if (n <= 0) return [];
+  const accents = schemeMindmapColors(scheme);
+  // pick the most saturated accent as the generator base
+  let base = accents[0] || scheme.stroke || "#1e1e1e";
+  let bestSat = -1;
+  for (const c of accents) {
     try {
-      return mutate(ea.getCM(c)).stringHEX({ alpha: false });
-    } catch (e) {
-      return null;
-    }
-  };
-  // tonal variants
-  for (const off of [26, -26, 46, -46, 14, -14, 60, -60]) {
-    if (out.length >= n) break;
-    for (const c of base) {
-      if (out.length >= n) break;
-      add(hex(c, (cm) => cm.lightnessTo(Math.max(12, Math.min(92, cm.lightness + off)))));
-    }
+      const s = ea.getCM(c).saturation;
+      if (typeof s === "number" && s > bestSat) { bestSat = s; base = c; }
+    } catch (e) { /* skip */ }
   }
-  // hue rotations
-  for (let deg = 18; out.length < n && deg < 360; deg += 18) {
-    for (const c of base) {
-      if (out.length >= n) break;
-      add(hex(c, (cm) => cm.hueBy(deg)));
+
+  const out = [];
+  let baseHue = 0;
+  let baseCM = null;
+  try { baseCM = ea.getCM(base); baseHue = baseCM.hue || 0; } catch (e) { /* */ }
+
+  // (near-)greyscale -> spread by lightness instead of hue
+  if (bestSat < 12 || !baseCM) {
+    for (let i = 0; i < n; i++) {
+      const L = n === 1 ? 50 : 14 + (i * (88 - 14)) / (n - 1);
+      try { out.push(ea.getCM(base).lightnessTo(L).stringHEX({ alpha: false })); }
+      catch (e) { out.push(base); }
+    }
+    return out;
+  }
+
+  for (let i = 0; i < n; i++) {
+    const targetHue = (baseHue + (i * 360) / n) % 360;
+    try {
+      const cm = ea.getCM(base);
+      out.push(cm.hueBy(targetHue - cm.hue).stringHEX({ alpha: false }));
+    } catch (e) {
+      out.push(base);
     }
   }
   return out;
@@ -778,7 +781,7 @@ async function applyToMindMap(scheme) {
         const info = mmb.getMapInfo(nid);
         if (info && info.ok && info.data.depth === 1) firstLevel.push(nid);
       }
-      const palette = expandPalette(colors, firstLevel.length);
+      const palette = distinctBranchColors(scheme, firstLevel.length);
       firstLevel.forEach((nid, idx) => {
         const color = palette[idx % palette.length];
         branchCount++;
