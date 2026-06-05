@@ -6,6 +6,12 @@ An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/
 
 ![Video](Color%20Scheme%20Manager.gif)
 
+## 📺 Demo video
+
+[![Color Scheme Manager — demo](https://i.ytimg.com/vi/ymPiitomOtg/maxresdefault.jpg)](https://youtu.be/ymPiitomOtg)
+
+▶️ Watch on YouTube: **[youtu.be/ymPiitomOtg](https://youtu.be/ymPiitomOtg)**
+
 ## Features
 
 - **Docked side panel** - Browse and apply schemes without leaving your drawing
