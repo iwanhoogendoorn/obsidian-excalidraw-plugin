@@ -17,12 +17,17 @@ An Obsidian Excalidraw script that swaps the entire **Stroke** and **Background/
 - **Docked side panel** - Browse and apply schemes without leaving your drawing
 - **Categorized library** - A **Category** dropdown filters ~60 built-in themes across 8 categories
 - **Full 15-swatch palettes** - Every scheme populates the picker's extended grid (3×5) *and* the toolbar quick-pick rows, each swatch with a light→dark shade ramp
-- **Stroke + Fill only** - Themes the element Stroke and Background/Fill palettes; the **canvas background is always left untouched (white)**
-- **Smart apply** - With elements selected it recolours them; with nothing selected it sets the active stroke/fill for the next elements you draw
+- **Stratified like the defaults** - Per theme, the **Stroke** grid holds the strong accents, the **Fill** grid their pastel tints, and the **Canvas** grid near-white "paper" tints — the same stroke↔background pairing rule as Excalidraw's stock palette
+- **Themable canvas background** - White by default, but every scheme has a canvas swatch: set it to any colour (e.g. a paper tint of the theme) and applying the scheme repaints the canvas too
+- **Multi-object themify** - Select several objects and click a theme: **each object gets its own stroke+fill pair** from the theme's accents (a group counts as one object, bound text follows its container) — the whole look changes in one click
+- **Colour cycling** - Click the same theme again to rotate which accent lands on which object; keep clicking to flip through the pairings (works on a single object too)
+- **Full colour editor** - Every colour pick opens an editor with a **spectrum/sliders/eyedropper** picker, **HEX** and **RGB** fields, or the native palette grid
+- **Expand theme → picker** - Load the active theme as 55 swatches per picker: every accent as a row of 5 lightness levels (stroke gets the dark-leaning levels, fill the light-leaning ones) plus an identical neutrals row in every theme
+- **Smart apply** - With one object selected it recolours it; with nothing selected it sets the active stroke/fill for the next elements you draw
 - **Create your own** - Pick two colours and a full 10-accent palette is auto-synthesized
 - **Import** - Paste hex codes (e.g. a [Paletton](https://paletton.com) "as text" export) to build a scheme/theme instantly
 - **Active indicator** - The currently applied scheme is highlighted with a ▸ marker (persists across reloads)
-- **Reset** - A `↺ Default` entry restores Excalidraw's built-in palette
+- **Reset** - A `↺ Default` entry restores Excalidraw's built-in palette (and the white canvas)
 - **Persistent** - All schemes (built-in + custom) are saved in the plugin's script settings
 
 ## Installation
@@ -61,10 +66,11 @@ It's saved to your `Downloaded` scripts subfolder and appears in the scripts men
 
 | Context | Result |
 |---------|--------|
-| Elements selected | Their **stroke** and **fill** are recoloured |
+| ONE object (or one group) selected | Its **stroke** and **fill** are recoloured |
+| SEVERAL objects selected | **Each object gets its own stroke+fill pair** from the theme's accents — a group counts as one object, bound text follows its container |
+| Same theme clicked again | The colour assignment **cycles** one step per click (single objects step through the accent pairs) |
 | Nothing selected | The **active** stroke/fill is set for the next elements you draw |
-| Always | The native picker (quick-pick rows + extended 3×5 grid) is repainted with the scheme's family |
-| Never | The canvas background colour is left as-is |
+| Always | The native picker (quick-pick rows + extended 3×5 grid) is repainted with the scheme's family, and the canvas is painted with the scheme's canvas colour (**white unless you themed it**) |
 
 ## Built-in Library
 
@@ -90,8 +96,8 @@ It's saved to your `Downloaded` scripts subfolder and appears in the scripts men
 | **Sample format** | Download a template `.txt` showing exactly what Import expects |
 | **Export palette** | Save the drawing's current picker palette as appState JSON (clipboard + Downloads) — re-importable via Option C |
 | **Add presets** | Pull in any built-in themes you don't already have |
-| **Save selection** | Capture the stroke/fill of the currently selected element as a new scheme |
-| **Load all → picker** | Load every saved scheme's colours into the picker at once |
+| **Save selection** | Capture the stroke/fill (+ current canvas colour) of the selected element as a new scheme |
+| **Expand theme → picker** | Load the ACTIVE theme as 55 swatches per picker: each accent as a row of 5 lightness levels (Stroke = dark-leaning, Fill = light-leaning) + a uniform neutrals row |
 | **Reset picker** | Restore Excalidraw's default palette |
 | 🎚️ (per row) | **Customize picker** — hand-pick the exact swatches, order, and top-picks |
 | ✎ (per row) | Rename **and/or** change the scheme's category |
@@ -116,7 +122,7 @@ Ready-made example files in this folder (download → **Import → Open a .txt /
 
 <img src="import-txt-json.png" width="75%">
 
-**Stroke / Fill / Canvas** map to Excalidraw's three colour pickers. In this script the **canvas background is always white and not editable**, so you only ever define **stroke** and **fill**. Each picker grid holds up to **15 swatches = 3 rows × 5 columns** (the first 5 you list are row 1, the next 5 row 2, the next 5 row 3), and every swatch gets an automatic light→dark shade ramp.
+**Stroke / Fill / Canvas** map to Excalidraw's three colour pickers. The **canvas background defaults to white**; you can optionally define it with a `CANVAS:` list (1st colour = the scheme's page background, the list = the canvas picker grid) — or change it later via the scheme's canvas swatch in the panel. Each picker grid holds up to **15 swatches = 3 rows × 5 columns** (the first 5 you list are row 1, the next 5 row 2, the next 5 row 3), and every swatch gets an automatic light→dark shade ramp.
 
 Hex is 6 digits, the leading `#` is optional, and `transparent` / `black` / `white` are allowed as names.
 
@@ -153,6 +159,9 @@ transparent D8DEE9 E5E9F0 ECEFF4 C0D0E0
 CFE8CF E8D6E8 F4C7C3 F5D9C8 F7ECC9
 EBEEF3 C2C9D6 CDD3DE D6DBE5 B9C2D0
 
+# CANVAS picker (optional) — 1st colour = the scheme's page background
+CANVAS: white ECEFF4 E5E9F0 D8DEE9
+
 # Quick-pick rows — 5 colours each (optional)
 TOPPICKS_STROKE: black 5E81AC BF616A A3BE8C EBCB8B
 TOPPICKS_FILL: transparent E5E9F0 F4C7C3 CFE8CF F7ECC9
@@ -188,12 +197,12 @@ For maximum fidelity you can paste/import a raw Excalidraw **`colorPalette`** ob
 If you don't want *all* of a scheme's colours loaded, or want a different order than the auto-generated one, click the **🎚️** button on a scheme row to open the **Customize picker** editor. It works on any scheme (built-in or your own) and edits four lists:
 
 - **Stroke grid** and **Fill grid** — up to 15 swatches each (3 rows × 5).
-- **Stroke top-picks** and **Fill top-picks** — the 5 quick swatches shown before the grid opens.
+- **Stroke top-picks** and **Fill top-picks** — the 5 quick swatches shown before the grid opens. **The first top-pick is a fixed anchor** (🔒 black for stroke, transparent for fill) — the other 4 are yours to edit, and they pre-fill from the theme's real top-picks.
 
 In each list you can:
 
-- **+ Add colour** via Excalidraw's native picker,
-- **click a swatch** to change it,
+- **+ Add colour** — opens the **colour editor** (spectrum/sliders/eyedropper, HEX, RGB, or the native palette grid),
+- **click a swatch** to change it (same colour editor),
 - **drag the ⠿ handle** to reorder (drag-and-drop),
 - **✕** to remove.
 
@@ -203,7 +212,7 @@ A live preview strip shows each list as you edit.
 - **↺ Revert to default** restores a built-in scheme's original colours (stroke / fill / accents) and clears the custom picker — the clean way to undo edits. (For your own schemes, it just clears the picker.)
 - **Load from theme…** copies any other theme's default colours into the editor as a starting point.
 
-The canvas background always stays white.
+The canvas colour is set via the scheme's third swatch in the panel (white by default).
 
 > Tip: the labelled **Import** format (Option B above) writes the same spec — the editor is just the visual way to do it.
 
@@ -254,6 +263,7 @@ Back up or move that value to transfer your library.
 
 - The colour picker caches while open — **close and reopen it** to see a newly applied palette.
 - The first cell of each picker stays **transparent**; **black** and **white** are kept as fixed anchors. Every other swatch is theme-derived.
+- Multi-object themify assigns colours **top-to-bottom, left-to-right** — deterministic, so re-applying gives the same result; click the theme again to rotate the assignment.
 - Press **Escape** to cancel any prompt.
 - Use the ℹ️ button at the top of the panel for a quick in-app description.
 
