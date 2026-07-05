@@ -5,9 +5,10 @@ comic-strip studio: drop a panel layout, fill the panels with hand-drawn charact
 any costume and pose, then punch it up with painted sound-effect FX — no drawing
 skills required.
 
-**The free tier ships in this folder** (see [`free/`](free/)): the 8-character Core
-Cast, 30 panel-layout templates, and 3 painted FX. More characters, costumes, themes
-and the full FX set: **[comicstripdirector.com](https://comicstripdirector.com/)**.
+**The free tier comes preinstalled**: the 8-character Core Cast (176 poses), all 30
+panel layouts, and 3 painted FX (POW! BOOM! ZAP!) work out of the box — no imports,
+no extra downloads. More characters, costumes, themes and the full FX set:
+**[comicstripdirector.com](https://comicstripdirector.com/)**.
 
 ## Features
 
@@ -18,11 +19,12 @@ and the full FX set: **[comicstripdirector.com](https://comicstripdirector.com/)
 - **Split the selected panel** — local diagonal / horizontal action-beat cuts; each
   region is its own placement target.
 - **Character system** — place characters by *who × costume × action*. The picker
-  shows only combinations from the packs you've imported, every tile with a real
-  thumbnail, plus per-character show/hide (**⚙ Manage**).
-- **Pack import** — install `.strippack` character and FX packs. Imports are
+  shows only combinations from the packs you own, every tile with a real thumbnail,
+  plus per-character show/hide (**⚙ Manage**).
+- **Pack import** — install `.strippack` character and FX add-on packs. Imports are
   idempotent and de-duplicated, and index files are backed up before every merge.
-- **Painted FX callouts** — POW! BOOM! ZAP! stamped straight into the selected panel.
+- **Painted FX callouts** — POW! BOOM! ZAP! stamped straight into the selected panel,
+  crisp SVG preferred automatically.
 - **Reserved callout zones** — composes with the
   [Comicbook Callout Editor](https://github.com/zsviczian/obsidian-excalidraw-plugin/blob/master/ea-scripts/Comicbook%20Callout%20Editor.md)
   for speech bubbles (never touches its data).
@@ -34,27 +36,29 @@ Everything the script draws is tagged `customData.stripDirector`; it never modif
 
 1. Install the **Obsidian Excalidraw plugin** (2.19.1 or higher) and enable the
    **Script Engine**.
-2. Copy both files into your Excalidraw scripts folder (set under
+2. Copy **all three** items into your Excalidraw scripts folder (set under
    *Excalidraw → Settings → Script Engine*):
-   - [`Comicbook Strip Director (Library).md`](Comicbook%20Strip%20Director%20(Library).md)
-   - [`Comicbook Strip Director (Library).svg`](Comicbook%20Strip%20Director%20(Library).svg)
-     (the toolbar icon — keep the same basename)
-3. Reload Excalidraw scripts and run **Comicbook Strip Director** from the script menu.
+   - `Comicbook Strip Director (Library).md` — the script
+   - `Comicbook Strip Director (Library).svg` — the toolbar icon (keep the basename)
+   - `Comicbook Strip Director (Library)/` — the **data folder** with the free
+     characters and FX (this is what makes the free tier work out of the box)
+3. Reload Excalidraw scripts and run **Comicbook Strip Director** from the script
+   menu. The Core Cast and free FX are already in the picker.
 
-### Add the free content
+> Easiest way to grab everything: **Code → Download ZIP** on this repo (or clone),
+> then copy this script's folder contents as above.
 
-| File in [`free/`](free/) | What it is | How to use |
-|---|---|---|
-| `core-free.strippack` | The 8 founding characters (Mia, Walt, Priya, Sam, Dr. Nadia, Rico, Grace, Felix) in every base pose | Put it anywhere in your vault → script panel → **⬇ Import pack…** |
-| `comic-fx-free.strippack` | 3 painted FX: POW! BOOM! ZAP! (PNG + SVG) | Put it in your vault → **⬇ Import FX pack…** |
-| `layouts-free.zip` | 30 blank page templates as SVG + PNG | The script has all 30 built in — this zip is for using them in *other* tools (Miro, Google Drawings, Figma, …) |
+### Extras
 
-Premium packs install exactly the same way — get them at
-[comicstripdirector.com](https://comicstripdirector.com/), drop the `.strippack` in
-your vault, and import.
+- [`free/layouts-free.zip`](free/layouts-free.zip) — the 30 page templates as
+  standalone SVG + PNG, for use in *other* tools (Miro, Google Drawings, Figma, …).
+  The script itself has all 30 built in.
+- **Add-on packs** — get them at [comicstripdirector.com](https://comicstripdirector.com/),
+  drop the `.strippack` anywhere in your vault, then use **⬇ Import pack…** /
+  **⬇ Import FX pack…** in the script panel.
 
 ## License
 
 The script is MIT-licensed (see [LICENSE](LICENSE)). The bundled free content
 (characters, layouts, FX) may be used freely in your own comics, personal or
-commercial; redistribution or resale of the packs themselves is not permitted.
+commercial; redistribution or resale of the content packs themselves is not permitted.

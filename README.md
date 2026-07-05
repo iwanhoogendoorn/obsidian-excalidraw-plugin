@@ -24,7 +24,7 @@ These scripts are **not part of the official Excalidraw distribution**.
 3. **[Create Table](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/create-table)**
 4. **[Create Table V2](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/create-table-v2)**
 5. **[Color Scheme Manager](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/color-scheme-manager)** — ✅ now in the [official Excalidraw Script Library](https://github.com/zsviczian/obsidian-excalidraw-plugin/blob/master/ea-scripts/index-new.md#color-scheme-manager)
-6. **[Comicbook Strip Director](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/comicbook-strip-director)** — comic-strip studio: 30-layout visual picker, character packs, painted FX. Ships with a **free tier** (Core Cast + layouts + FX); more packs at [comicstripdirector.com](https://comicstripdirector.com/)
+6. **[Comicbook Strip Director](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/comicbook-strip-director)** — comic-strip studio: 30-layout visual picker, character packs, painted FX. Free tier **preinstalled** (Core Cast + 30 layouts + FX); more packs at [comicstripdirector.com](https://comicstripdirector.com/)
 
 
 ## 🔗 Official Script Library
