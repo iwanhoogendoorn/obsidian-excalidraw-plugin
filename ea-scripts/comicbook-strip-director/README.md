@@ -5,12 +5,15 @@ comic-strip studio: drop a panel layout, fill the panels with hand-drawn charact
 any costume and pose, then punch it up with painted sound-effect FX — no drawing
 skills required.
 
-![Comicbook Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](screenshot.png)
+![Comicbook Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](demo.gif)
+
 
 **The free tier comes preinstalled**: the 8-character Core Cast (176 poses), all 30
 panel layouts, and 3 painted FX (POW! BOOM! ZAP!) work out of the box — no imports,
 no extra downloads. More characters, costumes, themes and the full FX set:
 **[comicstripdirector.com](https://comicstripdirector.com/)**.
+
+![Comicbook Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](screenshot.png)
 
 ## Meet the free Core Cast
 
