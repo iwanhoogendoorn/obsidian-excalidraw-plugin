@@ -1724,7 +1724,7 @@ async function buildPanel(tab, ctx) {
     impFx.onclick = async () => {
       try {
         const files = await listStrippackFiles();
-        if (!files.length) { new Notice("No .strippack files found. Put the pack in your Excalidraw scripts folder or in the script's data folder, then retry.", 7000); return; }
+        if (!files.length) { new Notice("No .strippack files found. Copy the pack with Finder/Explorer into your Excalidraw scripts folder (drag-dropping onto Obsidian silently ignores .strippack files), then retry.", 9000); return; }
         const chosen = await pickFromList(files, files.map((p) => p.split("/").pop()), "Pick a Comic FX pack");
         if (!chosen) return;
         const ad = _vaultApp().vault.adapter;
@@ -1851,7 +1851,7 @@ async function buildPanel(tab, ctx) {
       try {
         const files = await listStrippackFiles();
         if (!files.length) {
-          new Notice("No .strippack files found. Put the pack in your Excalidraw scripts folder or in the script's data folder (anywhere in the vault also works), then try again.", 7000);
+          new Notice("No .strippack files found. Copy the pack with Finder/Explorer into your Excalidraw scripts folder (drag-dropping onto Obsidian silently ignores .strippack files), then try again.", 9000);
           return;
         }
         const labels = files.map((p) => p.split("/").pop());
