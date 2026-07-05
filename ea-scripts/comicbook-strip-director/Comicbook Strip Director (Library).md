@@ -340,7 +340,8 @@ async function loadRosterLegacy(force) {
 //   slice into this bundle's roster.json + ai-figures.json and writes the images
 //   into New/Legacy Figures/, so purchased or shared packs light up the picker.
 //   Everything an import writes is provenance-tagged with the pack id, and the
-//   two index files are backed up before the first mutation.
+//   index files are read and validated BEFORE any file is written, and backed
+//   up right before each merge is committed.
 // ===========================================================================
 const PACK_FORMAT = "strippack/v1";
 
@@ -368,6 +369,26 @@ function _safeRel(rel) {
   const parts = s.split("/").filter((p) => p && p !== ".");
   if (!parts.length || parts.some((p) => p === "..")) return null;
   return parts.join("/");
+}
+// Pack-facing variant: additionally refuses bundle-root paths that would shadow the
+// index files (a figure named "roster.json" must never become the roster).
+const _RESERVED_INDEX_FILES = new Set(["roster.json", "roster-legacy.json", "ai-figures.json", "fx-figures.json", "figures.json"]);
+function _safePackRel(rel) {
+  const s = _safeRel(rel);
+  if (!s) return null;
+  if (!s.includes("/") && _RESERVED_INDEX_FILES.has(s.toLowerCase())) return null;
+  return s;
+}
+
+// Decode a pack PNG payload and verify the PNG signature — returns the bytes, or
+// null when the data is undecodable or not a PNG (never write garbage image files).
+function _decodePng(dataUri) {
+  try {
+    const buf = _b64ToArrayBuffer(_dataURIPayload(dataUri));
+    const v = new Uint8Array(buf);
+    if (v.length >= 8 && v[0] === 0x89 && v[1] === 0x50 && v[2] === 0x4e && v[3] === 0x47) return buf;
+  } catch (e) { /* undecodable */ }
+  return null;
 }
 
 // Discover *.strippack files the user could import. NOTE: Obsidian does not index
@@ -417,10 +438,15 @@ async function _backupVaultFile(adapter, path) {
   } catch (e) { /* non-fatal */ }
 }
 
-// Ensure a (possibly nested) folder exists under the vault.
+// Ensure a (possibly nested) folder exists under the vault — creates each level.
 async function _ensureDir(adapter, dir) {
   if (!dir) return;
-  try { if (!(await adapter.exists(dir))) await adapter.mkdir(dir); } catch (e) { /* may already exist */ }
+  const parts = String(dir).split("/").filter(Boolean);
+  let cur = "";
+  for (const p of parts) {
+    cur = cur ? cur + "/" + p : p;
+    try { if (!(await adapter.exists(cur))) await adapter.mkdir(cur); } catch (e) { /* may already exist */ }
+  }
 }
 
 // First existing path in candidate order, else the first candidate (the write target).
@@ -475,6 +501,17 @@ async function installPack(pack, onProgress) {
     throw new Error("Not a Strip Director pack (expected " + PACK_FORMAT + ").");
   }
   const dir = _aiDir();
+
+  // 0) Read (and validate) BOTH index files before any file is written — a corrupt
+  //    index aborts the import with zero side effects (no orphaned images).
+  const rosterPath = await _resolveIndexPath(adapter, [dir + "/" + ROSTER_FILE, ROSTER_FILE, "AI Figures/" + ROSTER_FILE]);
+  const roster = (await _readIndexOrThrow(adapter, rosterPath, "roster.json")) || { characters: [], functions: [], actions: [] };
+  roster.characters = (roster.characters || []).filter(Boolean);
+  roster.functions = (roster.functions || []).filter(Boolean);
+  roster.actions = (roster.actions || []).filter(Boolean);
+  const manifestPath = await _resolveIndexPath(adapter, [dir + "/" + AI_MANIFEST, AI_MANIFEST, "AI Figures/" + AI_MANIFEST]);
+  const manifest = (await _readIndexOrThrow(adapter, manifestPath, "ai-figures.json")) || { figures: [] };
+  manifest.figures = (manifest.figures || []).filter(Boolean);
   await _ensureDir(adapter, dir);
 
   // 1) Write figure images (PNG required, SVG optional). Skip ones already present.
@@ -482,36 +519,49 @@ async function installPack(pack, onProgress) {
   //    only those earn a manifest row, so a png-less entry can't create a broken thumbnail.
   let imagesWritten = 0, imagesSkipped = 0;
   const available = new Set();
-  const figs = pack.figures || [];
+  const figs = Array.isArray(pack.figures) ? pack.figures.filter((f) => f && typeof f === "object") : [];
 
   // Pre-list the target sub-folders once and pre-create them, so the per-figure loop
   // is pure in-memory membership checks + writes — no exists() round-trip per image.
   // Paths are normalized so membership matches adapter.list output regardless of how a
   // pack authored f.file (leading/duplicate slashes, ./ etc).
-  const norm = (p) => { try { return ea.obsidian.normalizePath(p); } catch (e) { return String(p).replace(/\/{2,}/g, "/").replace(/^\.\//, ""); } };
+  const norm = (p) => { try { return ea.obsidian.normalizePath(p); } catch (e) { return String(p).replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/^\.\//, ""); } };
   const onDisk = new Set();                       // normalized abs paths already present
   const subdirs = new Set();
-  for (const f of figs) { const rel = _safeRel(f.file) || ""; subdirs.add(rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : ""); }
+  for (const f of figs) { const rel = _safePackRel(f.file) || ""; subdirs.add(rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : ""); }
   for (const sd of subdirs) {
     const full = norm(sd ? dir + "/" + sd : dir);
     await _ensureDir(adapter, full);
     try { const l = await adapter.list(full); (l.files || []).forEach((p) => onDisk.add(norm(p))); } catch (e) { /* empty dir */ }
   }
+  // Existing manifest rows per file path — used to detect cross-pack path collisions.
+  const fileOwners = new Map();
+  for (const m of manifest.figures) if (m && m.file) { const k = norm(dir + "/" + m.file); if (!fileOwners.has(k)) fileOwners.set(k, m.cacheKey || m.id); }
 
   for (let i = 0; i < figs.length; i++) {
     const f = figs[i];
-    const rel = _safeRel(f.file);                // bundle-relative, e.g. "New Figures/x.png"
+    let rel = _safePackRel(f.file);              // bundle-relative, e.g. "New Figures/x.png"
     if (!rel) { if (onProgress) onProgress(i + 1, figs.length); continue; }
+    // Cross-pack collision: the path already exists on disk but belongs to a DIFFERENT
+    // figure (other cacheKey) — write this pack's art under a pack-suffixed name instead
+    // of silently reusing foreign artwork. Same-figure overlap (dedupe) is untouched.
+    const key = f.cacheKey || f.id;
+    const owner = fileOwners.get(norm(dir + "/" + rel));
+    if (owner && key && owner !== key && f.png) {
+      const dot = rel.lastIndexOf(".");
+      const suffixed = dot > 0 ? rel.slice(0, dot) + "-" + String(pack.packId || "pack") + rel.slice(dot) : rel + "-" + String(pack.packId || "pack");
+      rel = _safePackRel(suffixed) || rel;
+    }
     f.file = rel;                                // manifest rows keep the sanitised path
-    const relSvg = _safeRel(f.fileSvg);
+    const relSvg = _safePackRel(f.fileSvg);
     const abs = norm(dir + "/" + rel);
     const svgAbs = relSvg ? norm(dir + "/" + relSvg) : null;
     let present = onDisk.has(abs);
     if (present) imagesSkipped++;                 // a genuinely pre-existing image
     try {
       if (f.png && !present) {
-        await adapter.writeBinary(abs, _b64ToArrayBuffer(_dataURIPayload(f.png)));
-        onDisk.add(abs); imagesWritten++; present = true;
+        const bytes = _decodePng(f.png);
+        if (bytes) { await adapter.writeBinary(abs, bytes); onDisk.add(abs); imagesWritten++; present = true; }
       }
       if (f.svg && svgAbs && !onDisk.has(svgAbs)) {
         await adapter.writeBinary(svgAbs, _b64ToArrayBuffer(_dataURIPayload(f.svg)));
@@ -522,16 +572,13 @@ async function installPack(pack, onProgress) {
     if (onProgress) onProgress(i + 1, figs.length);
   }
 
-  // 2) Merge roster.json (characters / functions / actions). Read+write the SAME file
-  //    the loader resolves, back it up, and commit through a verified temp write.
-  const rosterPath = await _resolveIndexPath(adapter, [dir + "/" + ROSTER_FILE, ROSTER_FILE, "AI Figures/" + ROSTER_FILE]);
-  const roster = (await _readIndexOrThrow(adapter, rosterPath, "roster.json")) || { characters: [], functions: [], actions: [] };
-  roster.characters = roster.characters || []; roster.functions = roster.functions || []; roster.actions = roster.actions || [];
+  // 2) Merge roster.json (pre-read + validated in step 0) — back up, then commit
+  //    through a verified temp write.
   await _backupVaultFile(adapter, rosterPath);
   const merge = (arr, incoming, tag) => {
-    const have = new Set(arr.map((x) => x.id));
+    const have = new Set(arr.map((x) => x && x.id).filter(Boolean));
     let added = 0;
-    for (const x of (incoming || [])) {
+    for (const x of (Array.isArray(incoming) ? incoming : [])) {
       if (x && x.id && !have.has(x.id)) { arr.push(tag ? { ...x, pack: pack.packId } : { ...x }); have.add(x.id); added++; }
     }
     return added;
@@ -542,11 +589,8 @@ async function installPack(pack, onProgress) {
   await _writeIndexSafely(adapter, rosterPath, roster);
 
   // 3) Merge ai-figures.json manifest (only figures whose image is actually on disk).
-  const manifestPath = await _resolveIndexPath(adapter, [dir + "/" + AI_MANIFEST, AI_MANIFEST, "AI Figures/" + AI_MANIFEST]);
-  const manifest = (await _readIndexOrThrow(adapter, manifestPath, "ai-figures.json")) || { figures: [] };
-  manifest.figures = manifest.figures || [];
   await _backupVaultFile(adapter, manifestPath);
-  const haveKeys = new Set(manifest.figures.map((x) => x.cacheKey || x.id));
+  const haveKeys = new Set(manifest.figures.map((x) => x && (x.cacheKey || x.id)).filter(Boolean));
   let figsAdded = 0;
   for (const f of figs) {
     const key = f.cacheKey || f.id;
@@ -1020,12 +1064,15 @@ async function buildStripFromLayout(layout, asp) {
 let FX_FIGURES = null;
 const FX_MANIFEST = "fx-figures.json";
 function _fxDir() { return _aiDir(); }
+// Resolve an FX entry to a bundle path — sanitised end-to-end (the id fallback too),
+// or null when the entry's paths are unusable.
 function fxImagePath(entry) {
-  const f = entry.file || ("FX/" + entry.id + ".png");
-  return _fxDir() + "/" + (String(f).includes("/") ? String(f).replace(/^\/+/, "") : "FX/" + f);
+  const raw = entry.file || (entry.id != null ? "FX/" + entry.id + ".png" : null);
+  const rel = _safePackRel(String(raw || "").includes("/") ? raw : (raw ? "FX/" + raw : null));
+  return rel ? _fxDir() + "/" + rel : null;
 }
 function fxThumbURL(entry) {
-  try { const ad = _vaultApp() && _vaultApp().vault && _vaultApp().vault.adapter; if (ad && ad.getResourcePath) return ad.getResourcePath(fxImagePath(entry)); } catch (e) { /* none */ }
+  try { const p = fxImagePath(entry); const ad = _vaultApp() && _vaultApp().vault && _vaultApp().vault.adapter; if (p && ad && ad.getResourcePath) return ad.getResourcePath(p); } catch (e) { /* none */ }
   return null;
 }
 async function loadFXFigures(force) {
@@ -1042,11 +1089,13 @@ async function loadFXFigures(force) {
 // Stamp a painted raster FX into the active panel (overlay — does not consume a slot).
 async function placeRasterFX(entry) {
   if (!entry) return;
+  const basePath = fxImagePath(entry);
+  if (!basePath) { new Notice(`Could not place ${entry.word || entry.name || "FX"} — its image path is invalid.`); return; }
   const ai = getActivePanelIndex();
   const region = (state.panels[ai] && state.panels[ai].rect) || { x: state.origin.x, y: state.origin.y, w: 460, h: 340 };
   ea.clear();
   let id;
-  try { const fxPath = await _preferSvgSibling(fxImagePath(entry)); id = await ea.addImage(region.x, region.y, fxPath, false, false); }
+  try { const fxPath = await _preferSvgSibling(basePath); id = await ea.addImage(region.x, region.y, fxPath, false, false); }
   catch (e) { console.error("Strip Director — FX stamp failed", e); new Notice(`Could not place ${entry.word || entry.name} — is its image imported?`); if (ea.clear) ea.clear(); return; }
   const el = ea.getElement ? ea.getElement(id) : null;
   if (el) {
@@ -1071,28 +1120,66 @@ async function importFXPack(pack) {
     throw new Error("Not a Comic FX pack (strippack-fx/v1).");
   }
   const dir = _fxDir();
-  await _ensureDir(ad, dir); await _ensureDir(ad, dir + "/FX");
-  const norm = (x) => { try { return ea.obsidian.normalizePath(x); } catch (e) { return String(x).replace(/\/{2,}/g, "/"); } };
-  const onDisk = new Set();
-  try { const l = await ad.list(norm(dir + "/FX")); (l.files || []).forEach((x) => onDisk.add(norm(x))); } catch (e) { /* empty */ }
-  let written = 0;
-  for (const f of pack.figures || []) {
-    const rel = _safeRel(f.file) || (f.id ? "FX/" + f.id + ".png" : null);
-    if (!rel) continue;
-    f.file = rel;
-    const abs = norm(dir + "/" + rel);
-    if (f.png && !onDisk.has(abs)) { try { await ad.writeBinary(abs, _b64ToArrayBuffer(_dataURIPayload(f.png))); onDisk.add(abs); written++; } catch (e) { /* skip */ } }
-    const relSvg = _safeRel(f.fileSvg);
-    if (f.svg && relSvg) { f.fileSvg = relSvg; const svgAbs = norm(dir + "/" + relSvg); if (!onDisk.has(svgAbs)) { try { await ad.writeBinary(svgAbs, _b64ToArrayBuffer(_dataURIPayload(f.svg))); onDisk.add(svgAbs); } catch (e) { /* skip */ } } }
-  }
+  const norm = (x) => { try { return ea.obsidian.normalizePath(x); } catch (e) { return String(x).replace(/\\/g, "/").replace(/\/{2,}/g, "/"); } };
+  const figsIn = Array.isArray(pack.figures) ? pack.figures.filter((f) => f && typeof f === "object") : [];
+  // Read (and validate) the manifest BEFORE any file is written — a corrupt index
+  // aborts the import with zero side effects.
   const mpath = await _resolveIndexPath(ad, [dir + "/" + FX_MANIFEST, FX_MANIFEST]);
   const man = (await _readIndexOrThrow(ad, mpath, "fx-figures.json")) || { figures: [] };
-  man.figures = man.figures || [];
+  man.figures = (man.figures || []).filter(Boolean);
+  await _ensureDir(ad, dir);
+  // Resolve every path through the sanitiser (the id-based fallback INCLUDED — a
+  // hostile id must never escape the bundle), pre-create referenced subfolders,
+  // and pre-list their contents once.
+  const rels = new Map();
+  const subdirs = new Set(["FX"]);
+  for (const f of figsIn) {
+    const rel = _safePackRel(f.file) || _safePackRel(f.id != null ? "FX/" + f.id + ".png" : null);
+    if (!rel) continue;
+    const relSvg = _safePackRel(f.fileSvg);
+    rels.set(f, { rel, relSvg });
+    if (rel.includes("/")) subdirs.add(rel.slice(0, rel.lastIndexOf("/")));
+    if (relSvg && relSvg.includes("/")) subdirs.add(relSvg.slice(0, relSvg.lastIndexOf("/")));
+  }
+  const onDisk = new Set();
+  for (const sd of subdirs) {
+    const full = norm(dir + "/" + sd);
+    await _ensureDir(ad, full);
+    try { const l = await ad.list(full); (l.files || []).forEach((x) => onDisk.add(norm(x))); } catch (e) { /* empty */ }
+  }
+  try { const l = await ad.list(norm(dir)); (l.files || []).forEach((x) => onDisk.add(norm(x))); } catch (e) { /* empty */ }
+  // Write images; only figures whose PNG is actually on disk become available —
+  // a failed write (bad base64, IO error) must not create a broken manifest row.
+  let written = 0;
+  const available = new Set();
+  for (const f of figsIn) {
+    const r = rels.get(f);
+    if (!r) continue;
+    f.file = r.rel;
+    if (r.relSvg) f.fileSvg = r.relSvg; else delete f.fileSvg;
+    const abs = norm(dir + "/" + r.rel);
+    let present = onDisk.has(abs);
+    if (f.png && !present) {
+      const bytes = _decodePng(f.png);
+      if (bytes) {
+        try { await ad.writeBinary(abs, bytes); onDisk.add(abs); written++; present = true; }
+        catch (e) { /* unwritable — not available */ }
+      }
+    }
+    if (f.svg && r.relSvg) {
+      const svgAbs = norm(dir + "/" + r.relSvg);
+      if (!onDisk.has(svgAbs)) { try { await ad.writeBinary(svgAbs, _b64ToArrayBuffer(_dataURIPayload(f.svg))); onDisk.add(svgAbs); } catch (e) { /* optional */ } }
+    }
+    if (present && f.id != null) available.add(f.id);
+  }
   await _backupVaultFile(ad, mpath);
-  const have = new Set(man.figures.map((x) => x.id));
+  const have = new Set(man.figures.map((x) => x && x.id).filter((x) => x != null));
   let added = 0;
-  for (const f of pack.figures || []) {
-    if (f.id && !have.has(f.id)) { man.figures.push({ id: f.id, name: f.name, word: f.word, file: f.file, fileSvg: f.fileSvg, w: f.w, h: f.h, kind: "fx" }); have.add(f.id); added++; }
+  for (const f of figsIn) {
+    if (f.id != null && available.has(f.id) && !have.has(f.id)) {
+      man.figures.push({ id: f.id, name: f.name, word: f.word, file: f.file, fileSvg: f.fileSvg, w: f.w, h: f.h, kind: "fx" });
+      have.add(f.id); added++;
+    }
   }
   await _writeIndexSafely(ad, mpath, man);
   return { written, added, name: pack.name };
@@ -1837,7 +1924,7 @@ async function buildPanel(tab, ctx) {
         chip.style.opacity = off ? "0.6" : "1";
         chip.onclick = () => { setCharDisabled(c.id, !off); renderManage(); rerenderPicker(); };
       });
-      const n = getDisabledChars().size;
+      const n = [...getDisabledChars()].filter((id) => present.has(id)).length;
       const foot = managePanel.createEl("div", { text: n ? `${n} character${n > 1 ? "s" : ""} hidden` : "All characters visible" });
       foot.style.fontSize = "0.72em"; foot.style.color = "var(--text-muted)"; foot.style.marginTop = "6px";
     }
@@ -1940,12 +2027,13 @@ async function buildPanel(tab, ctx) {
           charSet.add(ch);
           if (!charFuncs.has(ch)) charFuncs.set(ch, new Set());
           charFuncs.get(ch).add(fn);
-          if (f.action) {
-            if (!comboActs.has(key)) comboActs.set(key, new Set());
-            comboActs.get(key).add(f.action);
-            const k3 = key + "|" + f.action;
-            if (!comboFig.has(k3) || rank(f) > rank(comboFig.get(k3))) comboFig.set(k3, f);
-          }
+          // Action-less figures are reachable under a synthetic "pose" action, so a
+          // pack of untagged art never creates a dead-end costume.
+          const act = f.action || "pose";
+          if (!comboActs.has(key)) comboActs.set(key, new Set());
+          comboActs.get(key).add(act);
+          const k3 = key + "|" + act;
+          if (!comboFig.has(k3) || rank(f) > rank(comboFig.get(k3))) comboFig.set(k3, f);
           if (!charRep.has(ch) || rank(f) > rank(charRep.get(ch))) charRep.set(ch, f);
           if (!comboRep.has(key) || rank(f) > rank(comboRep.get(key))) comboRep.set(key, f);
         }
@@ -1963,7 +2051,7 @@ async function buildPanel(tab, ctx) {
         const actsAll = acts.concat([...actSet].filter((id) => !acts.some((a) => a.id === id)).map((id) => ({ id, label: prettyId(id) })));
 
         // Drop stale selections (character/costume no longer present, or hidden).
-        if (selChar && (DISABLED.has(selChar) || !charSet.has(selChar))) { selChar = null; selFunc = null; }
+        if (selChar != null && (DISABLED.has(selChar) || !charSet.has(selChar))) { selChar = null; selFunc = null; }
         if (selChar != null && selFunc != null) {
           const fs = charFuncs.get(selChar);
           if (!fs || !fs.has(selFunc)) selFunc = null;
@@ -1977,8 +2065,8 @@ async function buildPanel(tab, ctx) {
             selChar = c.id; selFunc = null; savePrefs({ lastChar: c.id }); render();
           });
         });
-        // Generic = a character-less figure (Legacy library only).
-        if (AI_LIB === "legacy" && charSet.has("")) {
+        // Generic = a character-less figure — offered whenever such figures exist.
+        if (charSet.has("")) {
           tile(g1, repURL(charRep, ""), "Generic", selChar === "", () => {
             selChar = ""; selFunc = null; savePrefs({ lastChar: "" }); render();
           });
