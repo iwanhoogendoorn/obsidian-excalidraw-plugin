@@ -5,10 +5,22 @@ comic-strip studio: drop a panel layout, fill the panels with hand-drawn charact
 any costume and pose, then punch it up with painted sound-effect FX — no drawing
 skills required.
 
+![Comicbook Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](screenshot.png)
+
 **The free tier comes preinstalled**: the 8-character Core Cast (176 poses), all 30
 panel layouts, and 3 painted FX (POW! BOOM! ZAP!) work out of the box — no imports,
 no extra downloads. More characters, costumes, themes and the full FX set:
 **[comicstripdirector.com](https://comicstripdirector.com/)**.
+
+## Meet the free Core Cast
+
+Eight hand-drawn characters, preinstalled and ready to pose — each available in all
+22 actions, and dressable in any costume pack you add later.
+
+<table>
+<tr><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/mia-present.png" alt="Mia" width="96"><br><b>Mia</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/walt-present.png" alt="Walt" width="96"><br><b>Walt</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/priya-present.png" alt="Priya" width="96"><br><b>Priya</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/sam-present.png" alt="Sam" width="96"><br><b>Sam</b></td></tr>
+<tr><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/nadia-present.png" alt="Dr. Nadia" width="96"><br><b>Dr. Nadia</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/rico-present.png" alt="Rico" width="96"><br><b>Rico</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/grace-present.png" alt="Grace" width="96"><br><b>Grace</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/felix-present.png" alt="Felix" width="96"><br><b>Felix</b></td></tr>
+</table>
 
 ## Features
 
