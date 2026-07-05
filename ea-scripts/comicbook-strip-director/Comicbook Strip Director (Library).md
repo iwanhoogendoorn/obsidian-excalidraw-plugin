@@ -1265,6 +1265,31 @@ function styleActionBtn(b) {
   return b;
 }
 
+// Open the Comicbook Callout Editor the friendliest way available, in order:
+// (1) already installed → say so (nothing to fetch); (2) open the plugin's own
+// script store dialog so it can be installed in-app; (3) fall back to GitHub.
+async function openCalloutEditor() {
+  const SCRIPT_MD = "Comicbook Callout Editor.md";
+  try {
+    const appRef = _vaultApp();
+    const ad = appRef && appRef.vault && appRef.vault.adapter;
+    const sf = ((ea.plugin && ea.plugin.settings && ea.plugin.settings.scriptFolderPath) || "Excalidraw/Scripts").replace(/\/+$/, "");
+    if (ad && ((await ad.exists(sf + "/Downloaded/" + SCRIPT_MD)) || (await ad.exists(sf + "/" + SCRIPT_MD)))) {
+      new Notice("Comicbook Callout Editor is already installed — select a callout zone, then run it from the Excalidraw script menu.", 7000);
+      return;
+    }
+  } catch (e) { /* detection failed — keep going */ }
+  try {
+    const panel = ea.targetView && ea.targetView.toolsPanelRef && ea.targetView.toolsPanelRef.current;
+    if (panel && typeof panel.actionOpenScriptInstallDialog === "function") {
+      panel.actionOpenScriptInstallDialog();
+      new Notice("Search for \"Comicbook Callout Editor\" in the script store to install it.", 6000);
+      return;
+    }
+  } catch (e) { /* store dialog unavailable — keep going */ }
+  try { window.open(CALLOUT_EDITOR_URL, "_blank"); } catch (e) { /* headless */ }
+}
+
 // Make a non-button clickable element keyboard-operable (Enter / Space), so the
 // thumbnail tiles aren't mouse-only.
 function makeActivatable(el, handler) {
@@ -1831,14 +1856,16 @@ async function buildPanel(tab, ctx) {
       .setButtonText("+ Callout zone")
       .setTooltip("Adds a reserved zone to the selected panel (run Comicbook Callout Editor to letter it)")
       .onClick(() => ctx.addCalloutZone && ctx.addCalloutZone());
-    // Pointer to the companion script that letters the zones.
+    // Pointer to the companion script that letters the zones. Click resolves
+    // locally first (installed? → script store dialog) with GitHub as backup;
+    // the href stays on GitHub so right-click / copy-link still work.
     const cel = row.createEl("a", { text: "Get the Comicbook Callout Editor →" });
     cel.style.cssText = "font-size:0.75em;font-weight:600;color:var(--interactive-accent);text-decoration:none;cursor:pointer;white-space:nowrap;margin-left:8px";
-    cel.title = "Opens the Comicbook Callout Editor script (official Excalidraw script library) — it turns reserved zones into speech bubbles";
+    cel.title = "If installed, points you to it; otherwise opens the Excalidraw script store (GitHub page as backup)";
     try { cel.setAttr("href", CALLOUT_EDITOR_URL); cel.setAttr("target", "_blank"); cel.setAttr("rel", "noopener"); } catch (e) {}
     cel.onmouseenter = () => { cel.style.textDecoration = "underline"; };
     cel.onmouseleave = () => { cel.style.textDecoration = "none"; };
-    cel.onclick = (e) => { try { e.preventDefault(); } catch (x) {} try { window.open(CALLOUT_EDITOR_URL, "_blank"); } catch (x) {} };
+    cel.onclick = (e) => { try { e.preventDefault(); } catch (x) {} openCalloutEditor(); };
   }
 
   // Footer — quiet store credit on the left, Close on the right.
