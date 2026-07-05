@@ -62,14 +62,23 @@ Everything the script draws is tagged `customData.stripDirector`; it never modif
 
 1. Install the **Obsidian Excalidraw plugin** (2.19.1 or higher) and enable the
    **Script Engine**.
-2. Copy **all three** items into your Excalidraw scripts folder (set under
-   *Excalidraw → Settings → Script Engine*):
-   - `Comicbook Strip Director (Library).md` — the script
-   - `Comicbook Strip Director (Library).svg` — the toolbar icon (keep the basename)
-   - `Comicbook Strip Director (Library)/` — the **data folder** with the free
-     characters and FX (this is what makes the free tier work out of the box)
-3. Reload Excalidraw scripts and run **Comicbook Strip Director** from the script
-   menu. The Core Cast and free FX are already in the picker.
+2. Copy **all three** items **into the scripts folder itself** (the folder set under
+   *Excalidraw → Settings → Script Engine*, default `Excalidraw/Scripts`) — a common
+   mistake is dropping them one level up, next to the Scripts folder, where the
+   script engine won't find them:
+
+   ```
+   Excalidraw/
+   └── Scripts/                                      ← they go IN here
+       ├── Comicbook Strip Director (Library).md     ← the script
+       ├── Comicbook Strip Director (Library).svg    ← toolbar icon (keep the basename)
+       └── Comicbook Strip Director (Library)/       ← data folder (free characters + FX)
+   ```
+
+3. Reopen your drawing (or reload Obsidian) and run **Comicbook Strip Director**
+   from the Excalidraw script menu. The Core Cast and free FX are already in the
+   picker — if the picker says "No characters imported yet", the data folder isn't
+   sitting next to the `.md` inside `Scripts/`.
 
 > Easiest way to grab everything: **Code → Download ZIP** on this repo (or clone),
 > then copy this script's folder contents as above.
