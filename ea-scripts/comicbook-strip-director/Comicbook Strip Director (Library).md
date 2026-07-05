@@ -359,11 +359,19 @@ function _dataURIPayload(uri) {
   return i >= 0 ? s.slice(i + 7) : s;
 }
 
-// Discover *.strippack files the user could import: the bundle, the Scripts
-// folder, an optional "Strip Packs" folder beside it, and the vault root.
+// Discover *.strippack files the user could import — anywhere in the vault
+// (packs often arrive as unzipped product folders), with a fixed-folder
+// adapter scan as fallback for vaults where getFiles is unavailable.
 async function listStrippackFiles() {
   const appRef = _vaultApp();
   if (!appRef || !appRef.vault || !appRef.vault.adapter) return [];
+  try {
+    const hits = (appRef.vault.getFiles ? appRef.vault.getFiles() : [])
+      .map((f) => f.path)
+      .filter((p) => p.toLowerCase().endsWith(".strippack"))
+      .sort();
+    if (hits.length) return hits;
+  } catch (e) { /* fall back to the directory scan */ }
   const adapter = appRef.vault.adapter;
   const sf = (ea.plugin && ea.plugin.settings && ea.plugin.settings.scriptFolderPath || "").replace(/\/+$/, "");
   const dirs = [_aiDir(), sf, sf ? sf + "/Strip Packs" : "", "Strip Packs", ""];
@@ -1405,7 +1413,10 @@ async function buildPanel(tab, ctx) {
   const fig = FIGURES;
   {
     const all = (AI_FIGURES && AI_FIGURES.figures) || [];
-    const pool = all.some((f) => f.lib !== "legacy") ? all.filter((f) => f.lib !== "legacy") : all;
+    // Same rule as the picker: the legacy/new split only applies when a legacy
+    // roster exists; otherwise every imported figure counts, whatever its lib.
+    const _hasLegacyRoster = ((ROSTER_LEGACY && ROSTER_LEGACY.characters) || []).length > 0;
+    const pool = _hasLegacyRoster && all.some((f) => f.lib !== "legacy") ? all.filter((f) => f.lib !== "legacy") : all;
     const uniq = (arr) => [...new Set(arr.filter(Boolean))];
     const charIds = uniq(pool.map((f) => f.character));
     const funcIds = uniq(pool.map((f) => f.function));
@@ -1872,19 +1883,29 @@ async function buildPanel(tab, ctx) {
         // tile shows a real thumbnail. Someone who imported only the Superhero pack
         // sees those 8 characters AS superheroes, only the Superhero costume, and only
         // its actions — no blank placeholders for figures they don't own.
-        const inLib = (f) => (AI_LIB === "legacy" ? f.lib === "legacy" : f.lib !== "legacy");
-        const rank = (a) => (a === "present" ? 3 : a === "stand" ? 2 : a === "wave" ? 1 : 0);
+        // The New/Legacy split only exists for vaults that HAVE a legacy roster
+        // (the toggle). Without one, imported packs may still carry lib:"legacy"
+        // figures (e.g. legacy-art character packs) — show EVERYTHING, deduped
+        // per combo, preferring non-legacy art for thumbnails.
+        const hasLegacyRoster = ((rosterLegacy && rosterLegacy.characters) || []).length > 0;
+        const inLib = (f) => !hasLegacyRoster || (AI_LIB === "legacy" ? f.lib === "legacy" : f.lib !== "legacy");
+        const rank = (f) => (f.action === "present" ? 3 : f.action === "stand" ? 2 : f.action === "wave" ? 1 : 0) * 2 + (f.lib !== "legacy" ? 1 : 0);
         const charSet = new Set(), charFuncs = new Map(), comboActs = new Map();
-        const charRep = new Map(), comboRep = new Map();
+        const charRep = new Map(), comboRep = new Map(), comboFig = new Map();
         for (const f of list) {
           if (!inLib(f)) continue;
           const ch = f.character || "", fn = f.function || "", key = ch + "|" + fn;
           charSet.add(ch);
           if (!charFuncs.has(ch)) charFuncs.set(ch, new Set());
           charFuncs.get(ch).add(fn);
-          if (f.action) { if (!comboActs.has(key)) comboActs.set(key, new Set()); comboActs.get(key).add(f.action); }
-          if (!charRep.has(ch) || rank(f.action) > rank(charRep.get(ch).action)) charRep.set(ch, f);
-          if (!comboRep.has(key) || rank(f.action) > rank(comboRep.get(key).action)) comboRep.set(key, f);
+          if (f.action) {
+            if (!comboActs.has(key)) comboActs.set(key, new Set());
+            comboActs.get(key).add(f.action);
+            const k3 = key + "|" + f.action;
+            if (!comboFig.has(k3) || rank(f) > rank(comboFig.get(k3))) comboFig.set(k3, f);
+          }
+          if (!charRep.has(ch) || rank(f) > rank(charRep.get(ch))) charRep.set(ch, f);
+          if (!comboRep.has(key) || rank(f) > rank(comboRep.get(key))) comboRep.set(key, f);
         }
         const repURL = (m, k) => { const e = m.get(k); return e ? aiThumbURL(e) : null; };
 
@@ -1940,7 +1961,11 @@ async function buildPanel(tab, ctx) {
         const g3 = grid(stepWrap);
         const aset = comboActs.get(selChar + "|" + selFunc) || new Set();
         acts.filter((a) => aset.has(a.id)).forEach((a) => {
-          tile(g3, thumb(selChar, selFunc, a.id), a.label || a.id, false, async () => {
+          // Stamp the indexed figure entry directly — robust to any cacheKey
+          // namespace an imported pack uses. Composer only as fallback.
+          const entry = comboFig.get(selChar + "|" + selFunc + "|" + a.id);
+          tile(g3, entry ? aiThumbURL(entry) : thumb(selChar, selFunc, a.id), a.label || a.id, false, async () => {
+            if (entry && ctx.placeAIFigure) { await ctx.placeAIFigure(entry); return; }
             if (ctx.composeOrPlace) await ctx.composeOrPlace({ character: selChar, func: selFunc, action: a.id, lib: AI_LIB });
           });
         });
