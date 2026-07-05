@@ -1439,9 +1439,38 @@ async function buildPanel(tab, ctx) {
         const b = d.createEl("span", { text: label + ": " }); b.style.fontWeight = "600";
         d.createEl("span", { text: txt });
       };
-      addLine("Characters", charIds.map((id) => nameOf(R.characters, id, "name")).sort().join(", "));
-      addLine("Costumes", funcIds.map((id) => nameOf(R.functions, id, "name")).sort().join(", "));
-      addLine("Actions", actIds.map((id) => nameOf(R.actions, id, "label")).sort().join(", "));
+      // Coverage maps — packs can drift (a costume sold for only some characters,
+      // a new character with fewer actions). Annotate coverage ONLY when it isn't
+      // universal, so the list stays clean while the matrix is complete.
+      const cov = { func: new Map(), act: new Map(), charFuncs: new Map() };
+      for (const f of pool) {
+        if (!f.character) continue;
+        if (f.function) {
+          if (!cov.func.has(f.function)) cov.func.set(f.function, new Set());
+          cov.func.get(f.function).add(f.character);
+          if (!cov.charFuncs.has(f.character)) cov.charFuncs.set(f.character, new Set());
+          cov.charFuncs.get(f.character).add(f.function);
+        }
+        if (f.action) {
+          if (!cov.act.has(f.action)) cov.act.set(f.action, new Set());
+          cov.act.get(f.action).add(f.character);
+        }
+      }
+      const nChar = charIds.length;
+      const withCov = (m, id, label) => { const n = (m.get(id) || new Set()).size; return n && n < nChar ? `${label} (${n}/${nChar})` : label; };
+      // Characters: annotate costume count only for those that deviate from the norm.
+      const costumeCounts = charIds.map((id) => (cov.charFuncs.get(id) || new Set()).size);
+      const mode = costumeCounts.length ? costumeCounts.sort((a, b) =>
+        costumeCounts.filter((v) => v === a).length - costumeCounts.filter((v) => v === b).length).pop() : 0;
+      const charLabel = (id) => {
+        const nm = nameOf(R.characters, id, "name");
+        const n = (cov.charFuncs.get(id) || new Set()).size;
+        if (n === mode) return nm;
+        return n === 0 ? `${nm} (base only)` : `${nm} (${n} costume${n > 1 ? "s" : ""})`;
+      };
+      addLine("Characters", charIds.map(charLabel).sort().join(", "));
+      addLine("Costumes", funcIds.map((id) => withCov(cov.func, id, nameOf(R.functions, id, "name"))).sort().join(", "));
+      addLine("Actions", actIds.map((id) => withCov(cov.act, id, nameOf(R.actions, id, "label"))).sort().join(", "));
       addLine("FX", fxList.map((f) => f.word || f.name || f.id).join(", "));
       if (fig) addLine("Hand-drawn library", `${fig.figures.length} figures in ${fig.styles.length} styles`);
       makeActivatable(statusRow, () => { open = !open; detail.style.display = open ? "block" : "none"; paint(); });
