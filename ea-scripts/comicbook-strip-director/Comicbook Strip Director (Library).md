@@ -1266,16 +1266,29 @@ function styleActionBtn(b) {
 }
 
 // Open the Comicbook Callout Editor the friendliest way available, in order:
-// (1) already installed → say so (nothing to fetch); (2) open the plugin's own
-// script store dialog so it can be installed in-app; (3) fall back to GitHub.
+// (1) installed → RUN it directly via the plugin's Script Engine (same call the
+// plugin's pane menu uses); (2) installed but no runnable view → point at the
+// script menu; (3) not installed → open the in-app script store; (4) GitHub.
 async function openCalloutEditor() {
   const SCRIPT_MD = "Comicbook Callout Editor.md";
   try {
     const appRef = _vaultApp();
     const ad = appRef && appRef.vault && appRef.vault.adapter;
     const sf = ((ea.plugin && ea.plugin.settings && ea.plugin.settings.scriptFolderPath) || "Excalidraw/Scripts").replace(/\/+$/, "");
-    if (ad && ((await ad.exists(sf + "/Downloaded/" + SCRIPT_MD)) || (await ad.exists(sf + "/" + SCRIPT_MD)))) {
-      new Notice("Comicbook Callout Editor is already installed — select a callout zone, then run it from the Excalidraw script menu.", 7000);
+    for (const p of [sf + "/Downloaded/" + SCRIPT_MD, sf + "/" + SCRIPT_MD]) {
+      if (!ad || !(await ad.exists(p))) continue;
+      // Installed. Best case: execute it right now on the active view.
+      try {
+        const se = ea.plugin && ea.plugin.scriptEngine;
+        const f = appRef.vault.getAbstractFileByPath && appRef.vault.getAbstractFileByPath(p);
+        if (f && ea.targetView && se && typeof se.executeScript === "function") {
+          const src = String(await appRef.vault.read(f)).replace(/^---\n[\s\S]*?\n---\n/, "");
+          const nm = (typeof se.getScriptName === "function" && se.getScriptName(f)) || "Comicbook Callout Editor";
+          await se.executeScript(ea.targetView, src, nm, f);
+          return;
+        }
+      } catch (e) { console.error("Strip Director: could not run the Callout Editor directly", e); }
+      new Notice("Comicbook Callout Editor is installed — select a callout zone, then run it from the Excalidraw script menu.", 7000);
       return;
     }
   } catch (e) { /* detection failed — keep going */ }
@@ -1859,9 +1872,9 @@ async function buildPanel(tab, ctx) {
     // Pointer to the companion script that letters the zones. Click resolves
     // locally first (installed? → script store dialog) with GitHub as backup;
     // the href stays on GitHub so right-click / copy-link still work.
-    const cel = row.createEl("a", { text: "Get the Comicbook Callout Editor →" });
+    const cel = row.createEl("a", { text: "Open Comicbook Callout Editor →" });
     cel.style.cssText = "font-size:0.75em;font-weight:600;color:var(--interactive-accent);text-decoration:none;cursor:pointer;white-space:nowrap;margin-left:8px";
-    cel.title = "If installed, points you to it; otherwise opens the Excalidraw script store (GitHub page as backup)";
+    cel.title = "Runs the Comicbook Callout Editor if installed; otherwise opens the Excalidraw script store (GitHub page as backup)";
     try { cel.setAttr("href", CALLOUT_EDITOR_URL); cel.setAttr("target", "_blank"); cel.setAttr("rel", "noopener"); } catch (e) {}
     cel.onmouseenter = () => { cel.style.textDecoration = "underline"; };
     cel.onmouseleave = () => { cel.style.textDecoration = "none"; };
