@@ -75,6 +75,10 @@ Everything the script draws is tagged `customData.stripDirector`; it never modif
        └── Comicbook Strip Director (Library)/       ← data folder (free characters + FX)
    ```
 
+   (Installed via the Excalidraw **script store** instead? The script then lives in
+   `Scripts/Downloaded/` — that works too: put the data folder either next to it in
+   `Downloaded/` or in the `Scripts/` root.)
+
 3. Reopen your drawing (or reload Obsidian) and run **Comicbook Strip Director**
    from the Excalidraw script menu. The Core Cast and free FX are already in the
    picker — if the picker says "No characters imported yet", the data folder isn't

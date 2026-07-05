@@ -163,10 +163,29 @@ function _vaultApp() { return (ea.plugin && ea.plugin.app) || (typeof app !== "u
 // in a folder named exactly like this script, INSIDE the Scripts folder — so the
 // script and its data move / share as one portable bundle.
 const BUNDLE_DIR_NAME = "Comicbook Strip Director (Library)";
-function _bundleDir() {
+// Where the data bundle lives. Resolved once at startup: normally in the scripts
+// folder root, but when this script is installed via the official script store it
+// runs from Scripts/Downloaded/ — so the data folder is honoured in EITHER place.
+let _BUNDLE_DIR = null;
+function _scriptsRoot() {
   const sf = ea.plugin && ea.plugin.settings && ea.plugin.settings.scriptFolderPath;
-  const base = sf ? sf.replace(/\/+$/, "") : "Excalidraw/Scripts";
-  return base + "/" + BUNDLE_DIR_NAME;
+  return sf ? sf.replace(/\/+$/, "") : "Excalidraw/Scripts";
+}
+function _bundleDir() {
+  return _BUNDLE_DIR || (_scriptsRoot() + "/" + BUNDLE_DIR_NAME);
+}
+async function resolveBundleDir() {
+  if (_BUNDLE_DIR) return _BUNDLE_DIR;
+  try {
+    const appRef = _vaultApp();
+    const ad = appRef && appRef.vault && appRef.vault.adapter;
+    const root = _scriptsRoot();
+    for (const c of [root + "/" + BUNDLE_DIR_NAME, root + "/Downloaded/" + BUNDLE_DIR_NAME]) {
+      if (ad && (await ad.exists(c))) { _BUNDLE_DIR = c; return c; }
+    }
+  } catch (e) { /* fall through to default */ }
+  _BUNDLE_DIR = _scriptsRoot() + "/" + BUNDLE_DIR_NAME;
+  return _BUNDLE_DIR;
 }
 
 // Candidate paths for the companion figures JSON (bundle first, then legacy spots).
@@ -1379,25 +1398,57 @@ async function buildPanel(tab, ctx) {
     .setIcon("info").setTooltip("About Strip Director")
     .onClick(() => { about.style.display = about.style.display === "none" ? "block" : "none"; });
 
-  // Status line — reports what IS loaded (characters / FX / optional hand-drawn
-  // vector library). Only warns when the data folder itself is missing, i.e. no
-  // content at all — figures.json is an optional extra, never a warning.
+  // Status line — a one-line inventory of what IS loaded (characters, costumes,
+  // actions, FX, optional hand-drawn vector library), expandable to the full
+  // name lists. Only warns when the data folder itself is missing — figures.json
+  // is an optional extra, never a warning.
   const fig = FIGURES;
-  const nChars = new Set(((AI_FIGURES && AI_FIGURES.figures) || []).map((f) => f.character).filter(Boolean)).size;
-  const nFX = ((FX_FIGURES && FX_FIGURES.figures) || []).length;
-  const statusRow = contentEl.createDiv();
-  statusRow.style.fontSize = "0.78em";
-  statusRow.style.margin = "6px 0 0";
-  if (nChars || nFX || fig) {
-    statusRow.style.color = "var(--text-muted)";
-    const bits = [];
-    if (nChars) bits.push(`${nChars} character${nChars > 1 ? "s" : ""}`);
-    if (nFX) bits.push(`${nFX} FX`);
-    if (fig) bits.push(`${fig.figures.length} hand-drawn figures (${fig.styles.length} styles)`);
-    statusRow.setText("Loaded: " + bits.join(" · "));
-  } else {
-    statusRow.style.color = "var(--text-warning)";
-    statusRow.setText(`No character data found — keep the "${BUNDLE_DIR_NAME}" data folder next to this script in your scripts folder, then reopen.`);
+  {
+    const all = (AI_FIGURES && AI_FIGURES.figures) || [];
+    const pool = all.some((f) => f.lib !== "legacy") ? all.filter((f) => f.lib !== "legacy") : all;
+    const uniq = (arr) => [...new Set(arr.filter(Boolean))];
+    const charIds = uniq(pool.map((f) => f.character));
+    const funcIds = uniq(pool.map((f) => f.function));
+    const actIds = uniq(pool.map((f) => f.action));
+    const fxList = (FX_FIGURES && FX_FIGURES.figures) || [];
+    const nameOf = (list, id, key) => { const hit = (list || []).find((x) => x.id === id); return (hit && (hit.name || hit[key])) || prettyId(id); };
+    const R = ROSTER || {};
+
+    const statusRow = contentEl.createDiv();
+    statusRow.style.fontSize = "0.78em";
+    statusRow.style.margin = "6px 0 0";
+    if (charIds.length || fxList.length || fig) {
+      statusRow.style.color = "var(--text-muted)";
+      statusRow.style.cursor = "pointer";
+      const bits = [];
+      if (charIds.length) bits.push(`${charIds.length} character${charIds.length > 1 ? "s" : ""}`);
+      if (funcIds.length) bits.push(`${funcIds.length} costume${funcIds.length > 1 ? "s" : ""}`);
+      if (actIds.length) bits.push(`${actIds.length} action${actIds.length > 1 ? "s" : ""}`);
+      if (fxList.length) bits.push(`${fxList.length} FX`);
+      if (fig) bits.push(`${fig.figures.length} hand-drawn figures`);
+      let open = false;
+      const paint = () => statusRow.setText((open ? "▾ " : "▸ ") + "Loaded: " + bits.join(" · "));
+      paint();
+      statusRow.title = "Click for the full list of what's available";
+
+      const detail = contentEl.createDiv();
+      detail.style.cssText = "display:none;font-size:0.74em;color:var(--text-muted);margin:4px 0 2px;padding:7px 9px;border:1px solid var(--background-modifier-border);border-radius:6px;background:var(--background-secondary)";
+      const addLine = (label, txt) => {
+        if (!txt) return;
+        const d = detail.createDiv(); d.style.margin = "1px 0";
+        const b = d.createEl("span", { text: label + ": " }); b.style.fontWeight = "600";
+        d.createEl("span", { text: txt });
+      };
+      addLine("Characters", charIds.map((id) => nameOf(R.characters, id, "name")).sort().join(", "));
+      addLine("Costumes", funcIds.map((id) => nameOf(R.functions, id, "name")).sort().join(", "));
+      addLine("Actions", actIds.map((id) => nameOf(R.actions, id, "label")).sort().join(", "));
+      addLine("FX", fxList.map((f) => f.word || f.name || f.id).join(", "));
+      if (fig) addLine("Hand-drawn library", `${fig.figures.length} figures in ${fig.styles.length} styles`);
+      makeActivatable(statusRow, () => { open = !open; detail.style.display = open ? "block" : "none"; paint(); });
+    } else {
+      statusRow.style.color = "var(--text-warning)";
+      statusRow.setText(`No character data found — keep the "${BUNDLE_DIR_NAME}" data folder next to this script (in the scripts folder or its Downloaded/ subfolder), then reopen.`);
+    }
   }
 
   // === Build a page — visual layout picker + generator + FX =================
@@ -1926,6 +1977,7 @@ const ctx = {
 };
 
 ea.createSidepanelTab("Strip Director", false, true).then(async (tab) => {
+  await resolveBundleDir();                    // locate the data folder (scripts root or Downloaded/)
   await loadFigures(false);                    // preload so the status line is accurate
   await loadAIFigures(false);                  // preload AI-composed figures (if any)
   await loadRoster(false);                     // preload the character-system roster (R7)
