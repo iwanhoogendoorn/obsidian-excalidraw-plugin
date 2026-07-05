@@ -1379,17 +1379,25 @@ async function buildPanel(tab, ctx) {
     .setIcon("info").setTooltip("About Strip Director")
     .onClick(() => { about.style.display = about.style.display === "none" ? "block" : "none"; });
 
-  // Figures status line
+  // Status line — reports what IS loaded (characters / FX / optional hand-drawn
+  // vector library). Only warns when the data folder itself is missing, i.e. no
+  // content at all — figures.json is an optional extra, never a warning.
   const fig = FIGURES;
+  const nChars = new Set(((AI_FIGURES && AI_FIGURES.figures) || []).map((f) => f.character).filter(Boolean)).size;
+  const nFX = ((FX_FIGURES && FX_FIGURES.figures) || []).length;
   const statusRow = contentEl.createDiv();
   statusRow.style.fontSize = "0.78em";
   statusRow.style.margin = "6px 0 0";
-  if (fig) {
+  if (nChars || nFX || fig) {
     statusRow.style.color = "var(--text-muted)";
-    statusRow.setText(`Library: ${fig.figures.length} figures · ${fig.styles.length} styles`);
+    const bits = [];
+    if (nChars) bits.push(`${nChars} character${nChars > 1 ? "s" : ""}`);
+    if (nFX) bits.push(`${nFX} FX`);
+    if (fig) bits.push(`${fig.figures.length} hand-drawn figures (${fig.styles.length} styles)`);
+    statusRow.setText("Loaded: " + bits.join(" · "));
   } else {
     statusRow.style.color = "var(--text-warning)";
-    statusRow.setText(`No figure library found. Put ${FIGURES_FILE} in your Excalidraw scripts folder, then reopen.`);
+    statusRow.setText(`No character data found — keep the "${BUNDLE_DIR_NAME}" data folder next to this script in your scripts folder, then reopen.`);
   }
 
   // === Build a page — visual layout picker + generator + FX =================
@@ -1548,10 +1556,11 @@ async function buildPanel(tab, ctx) {
     });
   }
 
-  // Place a figure (style -> figure -> stamp)
-  {
+  // Hand-drawn vector library (optional figures.json) — only shown when present,
+  // so fresh free-tier installs aren't confronted with a feature they don't have.
+  if (fig) {
     const row = section(contentEl, "Hand-drawn vector library", "Your original figures.json set — pick a style, then a figure, to stamp into the selected panel");
-    const btn = new ea.obsidian.ButtonComponent(row)
+    new ea.obsidian.ButtonComponent(row)
       .setButtonText("+ Figure").setCta()
       .setTooltip("Choose style → figure, then stamp it into the selected panel")
       .onClick(async () => {
@@ -1566,7 +1575,6 @@ async function buildPanel(tab, ctx) {
         const figure = figs.find((f) => f.id === id);
         if (ctx.placeFigure) await ctx.placeFigure(figure);
       });
-    if (!fig) btn.setDisabled(true);
   }
 
   // AI characters — guided builder: character -> role -> action, with previews.
