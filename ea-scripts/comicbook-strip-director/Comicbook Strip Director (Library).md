@@ -1198,7 +1198,7 @@ const ABOUT = `
 - **Characters** → pick **who** → **as what** (costume) → **doing what**
   (action). The picker shows only combinations from the packs you've imported,
   each with a real preview. **⚙ Manage** shows/hides imported characters.
-- **Import pack… / Import FX pack…** → install `.strippack` character or FX
+- **Import pack… / Import FX pack…** → install \`.strippack\` character or FX
   packs. Imports are safe: existing files are never overwritten, indexes are
   backed up first, and re-importing is a no-op.
 - **FX callouts** → click a painted POW! / ZAP! / KABOOM! to stamp it into the
