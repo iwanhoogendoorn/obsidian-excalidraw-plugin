@@ -359,33 +359,53 @@ function _dataURIPayload(uri) {
   return i >= 0 ? s.slice(i + 7) : s;
 }
 
-// Discover *.strippack files the user could import — anywhere in the vault
-// (packs often arrive as unzipped product folders), with a fixed-folder
-// adapter scan as fallback for vaults where getFiles is unavailable.
+// Sanitise a pack-supplied relative path. Returns a clean bundle-relative path, or
+// null when the entry is unusable or tries to escape the bundle ("..", absolute
+// paths, drive/scheme prefixes). Every pack-controlled path MUST pass through this.
+function _safeRel(rel) {
+  let s = String(rel || "").trim().replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/^\/+/, "");
+  if (!s || s.includes(":")) return null;
+  const parts = s.split("/").filter((p) => p && p !== ".");
+  if (!parts.length || parts.some((p) => p === "..")) return null;
+  return parts.join("/");
+}
+
+// Discover *.strippack files the user could import. NOTE: Obsidian does not index
+// unknown extensions, so vault.getFiles() usually can't see .strippack — we walk the
+// filesystem adapter instead. The scripts folder tree and the data folder are seeded
+// first (guaranteed coverage: scripts root, Downloaded/, the bundle, product
+// subfolders), then the rest of the vault best-effort under a folder budget.
 async function listStrippackFiles() {
   const appRef = _vaultApp();
   if (!appRef || !appRef.vault || !appRef.vault.adapter) return [];
-  try {
-    const hits = (appRef.vault.getFiles ? appRef.vault.getFiles() : [])
-      .map((f) => f.path)
-      .filter((p) => p.toLowerCase().endsWith(".strippack"))
-      .sort();
-    if (hits.length) return hits;
-  } catch (e) { /* fall back to the directory scan */ }
   const adapter = appRef.vault.adapter;
-  const sf = (ea.plugin && ea.plugin.settings && ea.plugin.settings.scriptFolderPath || "").replace(/\/+$/, "");
-  const dirs = [_aiDir(), sf, sf ? sf + "/Strip Packs" : "", "Strip Packs", ""];
-  const seen = new Set(), out = [];
-  for (const d of dirs) {
+  const hits = new Set();
+  try {
+    (appRef.vault.getFiles ? appRef.vault.getFiles() : []).forEach((f) => {
+      if (String(f.path).toLowerCase().endsWith(".strippack")) hits.add(f.path);
+    });
+  } catch (e) { /* index unavailable — the adapter walk below covers it */ }
+  const queue = [_scriptsRoot(), _aiDir(), "Strip Packs", "", "/"];
+  const seenDirs = new Set();
+  let budget = 400;                              // folder cap so huge vaults stay snappy
+  while (queue.length && budget-- > 0) {
+    const d = queue.shift();
+    const key = d || "/";
+    if (seenDirs.has(key)) continue;
+    seenDirs.add(key);
+    let listing;
     try {
-      if (d && !(await adapter.exists(d))) continue;
-      const listing = await adapter.list(d);
-      for (const f of (listing.files || [])) {
-        if (f.toLowerCase().endsWith(".strippack") && !seen.has(f)) { seen.add(f); out.push(f); }
-      }
-    } catch (e) { /* unreadable dir — skip */ }
+      if (d && d !== "/" && !(await adapter.exists(d))) continue;
+      listing = await adapter.list(d);
+    } catch (e) { continue; }
+    for (const f of (listing.files || [])) if (String(f).toLowerCase().endsWith(".strippack")) hits.add(f);
+    for (const sub of (listing.folders || [])) {
+      const base = String(sub).split("/").pop();
+      if (base === ".obsidian" || base === ".trash" || base === ".git" || base === "node_modules") continue;
+      queue.push(sub);
+    }
   }
-  return out;
+  return [...hits].sort();
 }
 
 // Snapshot a vault file to a single rolling .import-backup sibling (bounded — one
@@ -449,7 +469,11 @@ async function installPack(pack, onProgress) {
   const appRef = _vaultApp();
   const adapter = appRef && appRef.vault && appRef.vault.adapter;
   if (!adapter) throw new Error("No vault adapter available.");
-  if (!pack || pack.format !== PACK_FORMAT) throw new Error("Not a Strip Director pack (expected " + PACK_FORMAT + ").");
+  if (!pack || pack.format !== PACK_FORMAT) {
+    const fmt = pack && String(pack.format || "");
+    if (fmt && fmt.startsWith("strippack/")) throw new Error("This pack uses a newer format (" + fmt + ") — update the Comicbook Strip Director script, then import again.");
+    throw new Error("Not a Strip Director pack (expected " + PACK_FORMAT + ").");
+  }
   const dir = _aiDir();
   await _ensureDir(adapter, dir);
 
@@ -467,7 +491,7 @@ async function installPack(pack, onProgress) {
   const norm = (p) => { try { return ea.obsidian.normalizePath(p); } catch (e) { return String(p).replace(/\/{2,}/g, "/").replace(/^\.\//, ""); } };
   const onDisk = new Set();                       // normalized abs paths already present
   const subdirs = new Set();
-  for (const f of figs) { const rel = f.file || ""; subdirs.add(rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : ""); }
+  for (const f of figs) { const rel = _safeRel(f.file) || ""; subdirs.add(rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : ""); }
   for (const sd of subdirs) {
     const full = norm(sd ? dir + "/" + sd : dir);
     await _ensureDir(adapter, full);
@@ -476,10 +500,12 @@ async function installPack(pack, onProgress) {
 
   for (let i = 0; i < figs.length; i++) {
     const f = figs[i];
-    const rel = f.file;                          // bundle-relative, e.g. "New Figures/x.png"
+    const rel = _safeRel(f.file);                // bundle-relative, e.g. "New Figures/x.png"
     if (!rel) { if (onProgress) onProgress(i + 1, figs.length); continue; }
+    f.file = rel;                                // manifest rows keep the sanitised path
+    const relSvg = _safeRel(f.fileSvg);
     const abs = norm(dir + "/" + rel);
-    const svgAbs = f.fileSvg ? norm(dir + "/" + f.fileSvg) : null;
+    const svgAbs = relSvg ? norm(dir + "/" + relSvg) : null;
     let present = onDisk.has(abs);
     if (present) imagesSkipped++;                 // a genuinely pre-existing image
     try {
@@ -1039,7 +1065,11 @@ async function placeRasterFX(entry) {
 async function importFXPack(pack) {
   const ad = _vaultApp() && _vaultApp().vault && _vaultApp().vault.adapter;
   if (!ad) throw new Error("No vault adapter.");
-  if (!pack || pack.format !== "strippack-fx/v1") throw new Error("Not a Comic FX pack (strippack-fx/v1).");
+  if (!pack || pack.format !== "strippack-fx/v1") {
+    const fmt = pack && String(pack.format || "");
+    if (fmt && fmt.startsWith("strippack-fx/")) throw new Error("This FX pack uses a newer format (" + fmt + ") — update the Comicbook Strip Director script, then import again.");
+    throw new Error("Not a Comic FX pack (strippack-fx/v1).");
+  }
   const dir = _fxDir();
   await _ensureDir(ad, dir); await _ensureDir(ad, dir + "/FX");
   const norm = (x) => { try { return ea.obsidian.normalizePath(x); } catch (e) { return String(x).replace(/\/{2,}/g, "/"); } };
@@ -1047,10 +1077,13 @@ async function importFXPack(pack) {
   try { const l = await ad.list(norm(dir + "/FX")); (l.files || []).forEach((x) => onDisk.add(norm(x))); } catch (e) { /* empty */ }
   let written = 0;
   for (const f of pack.figures || []) {
-    const rel = f.file || ("FX/" + f.id + ".png");
+    const rel = _safeRel(f.file) || (f.id ? "FX/" + f.id + ".png" : null);
+    if (!rel) continue;
+    f.file = rel;
     const abs = norm(dir + "/" + rel);
     if (f.png && !onDisk.has(abs)) { try { await ad.writeBinary(abs, _b64ToArrayBuffer(_dataURIPayload(f.png))); onDisk.add(abs); written++; } catch (e) { /* skip */ } }
-    if (f.svg && f.fileSvg) { const svgAbs = norm(dir + "/" + f.fileSvg); if (!onDisk.has(svgAbs)) { try { await ad.writeBinary(svgAbs, _b64ToArrayBuffer(_dataURIPayload(f.svg))); onDisk.add(svgAbs); } catch (e) { /* skip */ } } }
+    const relSvg = _safeRel(f.fileSvg);
+    if (f.svg && relSvg) { f.fileSvg = relSvg; const svgAbs = norm(dir + "/" + relSvg); if (!onDisk.has(svgAbs)) { try { await ad.writeBinary(svgAbs, _b64ToArrayBuffer(_dataURIPayload(f.svg))); onDisk.add(svgAbs); } catch (e) { /* skip */ } } }
   }
   const mpath = await _resolveIndexPath(ad, [dir + "/" + FX_MANIFEST, FX_MANIFEST]);
   const man = (await _readIndexOrThrow(ad, mpath, "fx-figures.json")) || { figures: [] };
@@ -1604,7 +1637,7 @@ async function buildPanel(tab, ctx) {
     impFx.onclick = async () => {
       try {
         const files = await listStrippackFiles();
-        if (!files.length) { new Notice("No .strippack files found. Put the Comic FX pack in your Scripts folder, then retry.", 6000); return; }
+        if (!files.length) { new Notice("No .strippack files found. Put the pack in your Excalidraw scripts folder or in the script's data folder, then retry.", 7000); return; }
         const chosen = await pickFromList(files, files.map((p) => p.split("/").pop()), "Pick a Comic FX pack");
         if (!chosen) return;
         const ad = _vaultApp().vault.adapter;
@@ -1731,7 +1764,7 @@ async function buildPanel(tab, ctx) {
       try {
         const files = await listStrippackFiles();
         if (!files.length) {
-          new Notice("No .strippack files found. Put one in your Scripts folder, a 'Strip Packs' folder beside it, or the vault root, then try again.", 6000);
+          new Notice("No .strippack files found. Put the pack in your Excalidraw scripts folder or in the script's data folder (anywhere in the vault also works), then try again.", 7000);
           return;
         }
         const labels = files.map((p) => p.split("/").pop());
@@ -1741,7 +1774,13 @@ async function buildPanel(tab, ctx) {
         let pack;
         try { pack = JSON.parse(await adapter.read(chosen)); }
         catch (e) { new Notice("Could not read or parse that pack file."); return; }
-        if (!pack || pack.format !== PACK_FORMAT) { new Notice("That file is not a Strip Director pack (" + PACK_FORMAT + ")."); return; }
+        if (!pack || pack.format !== PACK_FORMAT) {
+          const fmt = pack && String(pack.format || "");
+          new Notice(fmt && fmt.startsWith("strippack/")
+            ? "This pack needs a newer version of the script (" + fmt + ") — update Comicbook Strip Director, then import again."
+            : "That file is not a Strip Director pack (" + PACK_FORMAT + ").", 8000);
+          return;
+        }
         new Notice(`Installing “${pack.name || pack.packId}” — ${(pack.figures || []).length} figures…`, 4000);
         const res = await installPack(pack, (done, total) => { if (done % 100 === 0) new Notice(`…${done}/${total} figures`, 1500); });
         const nothingNew = res.figsAdded === 0 && res.charsAdded === 0 && res.imagesWritten === 0;
@@ -1778,9 +1817,12 @@ async function buildPanel(tab, ctx) {
       hint.style.fontSize = "0.74em"; hint.style.color = "var(--text-muted)"; hint.style.margin = "0 0 6px";
       const wrap = managePanel.createDiv();
       wrap.style.display = "flex"; wrap.style.flexWrap = "wrap"; wrap.style.gap = "5px";
-      // Only the characters actually imported (have figures) — matches the picker.
+      // Only the characters actually imported (have figures) — matches the picker,
+      // including ids the roster doesn't know (synthesised names).
       const present = new Set((list || []).filter((f) => f.character).map((f) => f.character));
-      const manageable = (rosterNew.characters || []).filter((c) => present.has(c.id));
+      const rosterChars = rosterNew.characters || [];
+      const manageable = rosterChars.filter((c) => present.has(c.id))
+        .concat([...present].filter((id) => !rosterChars.some((c) => c.id === id)).map((id) => ({ id, name: prettyId(id) })));
       if (!manageable.length) {
         const none = wrap.createEl("div", { text: "No characters imported yet." });
         none.style.cssText = "font-size:0.74em;color:var(--text-muted)";
@@ -1909,6 +1951,17 @@ async function buildPanel(tab, ctx) {
         }
         const repURL = (m, k) => { const e = m.get(k); return e ? aiThumbURL(e) : null; };
 
+        // Self-heal the vocabulary: a pack may ship figures whose character /
+        // costume / action ids are missing from the roster (or ship no roster
+        // arrays at all). Figures are the source of truth — synthesise entries
+        // with prettified names so imported content is ALWAYS reachable.
+        const funcSet = new Set(), actSet = new Set();
+        for (const s of charFuncs.values()) for (const id of s) if (id) funcSet.add(id);
+        for (const s of comboActs.values()) for (const id of s) actSet.add(id);
+        const charsAll = chars.concat([...charSet].filter((id) => id && !chars.some((c) => c.id === id)).map((id) => ({ id, name: prettyId(id) })));
+        const funcsAll = funcs.concat([...funcSet].filter((id) => !funcs.some((f) => f.id === id)).map((id) => ({ id, name: prettyId(id) })));
+        const actsAll = acts.concat([...actSet].filter((id) => !acts.some((a) => a.id === id)).map((id) => ({ id, label: prettyId(id) })));
+
         // Drop stale selections (character/costume no longer present, or hidden).
         if (selChar && (DISABLED.has(selChar) || !charSet.has(selChar))) { selChar = null; selFunc = null; }
         if (selChar != null && selFunc != null) {
@@ -1919,7 +1972,7 @@ async function buildPanel(tab, ctx) {
         // STEP 1 — WHO (only characters that have figures; thumbnail = a real figure)
         stepLabel(stepWrap, "1 · Who");
         const g1 = grid(stepWrap);
-        chars.filter((c) => charSet.has(c.id) && !DISABLED.has(c.id)).forEach((c) => {
+        charsAll.filter((c) => charSet.has(c.id) && !DISABLED.has(c.id)).forEach((c) => {
           tile(g1, repURL(charRep, c.id), c.name, selChar === c.id, () => {
             selChar = c.id; selFunc = null; savePrefs({ lastChar: c.id }); render();
           });
@@ -1931,7 +1984,7 @@ async function buildPanel(tab, ctx) {
           });
         }
         if (!g1.children.length) {
-          const disabledHere = chars.some((c) => charSet.has(c.id) && DISABLED.has(c.id));
+          const disabledHere = charsAll.some((c) => charSet.has(c.id) && DISABLED.has(c.id));
           const none = g1.createEl("div", { text: disabledHere
             ? "Every imported character is hidden — open ⚙ Manage characters to show some."
             : "No characters imported yet — use ⬇ Import pack… above, or" });
@@ -1949,7 +2002,7 @@ async function buildPanel(tab, ctx) {
             selFunc = ""; savePrefs({ lastFunc: "" }); render();
           });
         }
-        funcs.filter((f) => fset.has(f.id)).forEach((f) => {
+        funcsAll.filter((f) => fset.has(f.id)).forEach((f) => {
           tile(g2, repURL(comboRep, selChar + "|" + f.id), f.name, selFunc === f.id, () => {
             selFunc = f.id; savePrefs({ lastFunc: f.id }); render();
           });
@@ -1960,7 +2013,7 @@ async function buildPanel(tab, ctx) {
         stepLabel(stepWrap, "3 · Doing what — click to place");
         const g3 = grid(stepWrap);
         const aset = comboActs.get(selChar + "|" + selFunc) || new Set();
-        acts.filter((a) => aset.has(a.id)).forEach((a) => {
+        actsAll.filter((a) => aset.has(a.id)).forEach((a) => {
           // Stamp the indexed figure entry directly — robust to any cacheKey
           // namespace an imported pack uses. Composer only as fallback.
           const entry = comboFig.get(selChar + "|" + selFunc + "|" + a.id);
