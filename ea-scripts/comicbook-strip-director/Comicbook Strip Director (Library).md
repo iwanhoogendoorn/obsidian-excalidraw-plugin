@@ -71,6 +71,8 @@ const FIGURES_FILE = "figures.json";
 // few natural spots (near the import buttons, the empty state, the footer) — never a
 // banner or popup.
 const STORE_URL = "https://comicstripdirector.com/";
+// The companion script that letters the reserved callout zones (speech bubbles etc.).
+const CALLOUT_EDITOR_URL = "https://github.com/zsviczian/obsidian-excalidraw-plugin/blob/master/ea-scripts/Comicbook%20Callout%20Editor.md";
 const FIT_PAD = 0.9;          // breathing room when scaling a figure into a panel
 
 // ===========================================================================
@@ -1206,8 +1208,9 @@ const ABOUT = `
 - **Hand-drawn vector library** → your original figures.json set, stamped with
   strokes, colours and jitter preserved exactly — never restyled.
 - **Add callout zone** reserves an empty speech/caption area. It does **not**
-  draw a bubble — select that zone and run the **Comicbook Callout Editor** to
-  turn it into a real speech bubble, caption box or thought cloud.
+  draw a bubble — select that zone and run the
+  [Comicbook Callout Editor](${CALLOUT_EDITOR_URL}) to turn it into a real
+  speech bubble, caption box or thought cloud.
 
 Figures load from **\`figures.json\`** in this script's data bundle (a folder
 named after the script, in your Excalidraw scripts folder). The same figures are
@@ -1828,6 +1831,14 @@ async function buildPanel(tab, ctx) {
       .setButtonText("+ Callout zone")
       .setTooltip("Adds a reserved zone to the selected panel (run Comicbook Callout Editor to letter it)")
       .onClick(() => ctx.addCalloutZone && ctx.addCalloutZone());
+    // Pointer to the companion script that letters the zones.
+    const cel = row.createEl("a", { text: "Get the Comicbook Callout Editor →" });
+    cel.style.cssText = "font-size:0.75em;font-weight:600;color:var(--interactive-accent);text-decoration:none;cursor:pointer;white-space:nowrap;margin-left:8px";
+    cel.title = "Opens the Comicbook Callout Editor script (official Excalidraw script library) — it turns reserved zones into speech bubbles";
+    try { cel.setAttr("href", CALLOUT_EDITOR_URL); cel.setAttr("target", "_blank"); cel.setAttr("rel", "noopener"); } catch (e) {}
+    cel.onmouseenter = () => { cel.style.textDecoration = "underline"; };
+    cel.onmouseleave = () => { cel.style.textDecoration = "none"; };
+    cel.onclick = (e) => { try { e.preventDefault(); } catch (x) {} try { window.open(CALLOUT_EDITOR_URL, "_blank"); } catch (x) {} };
   }
 
   // Footer — quiet store credit on the left, Close on the right.
