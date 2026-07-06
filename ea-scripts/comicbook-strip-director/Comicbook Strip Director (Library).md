@@ -1967,7 +1967,9 @@ function renderStatusLine(contentEl, tab, ctx) {
       freeBtn.title = "One click: downloads the free Core Cast + FX packs and imports them";
       freeBtn.onclick = async () => {
         try {
-          if (await downloadFreeStarterPacks(() => createImportProgressMulti([tab && tab.__csdCharSection, tab && tab.__csdFxSection]))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
+          // getRow first: the progress box appears right HERE where the user
+          // clicked (top of the panel), plus over the sections further down.
+          if (await downloadFreeStarterPacks(() => createImportProgressMulti([getRow, tab && tab.__csdCharSection, tab && tab.__csdFxSection]))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
         } catch (e) { console.error("Strip Director: starter pack install failed", e); new Notice("Starter pack install failed — see console."); }
       };
       const hint = getRow.createEl("span", { text: "8 characters + FX, free — or drop a .strippack in your scripts folder and use ⬇ Import pack… below." });
