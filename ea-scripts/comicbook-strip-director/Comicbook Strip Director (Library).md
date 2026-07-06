@@ -1749,32 +1749,27 @@ function styleActionBtn(b) {
 }
 
 // Open the Comicbook Callout Editor the friendliest way available, in order:
-// (1) installed → RUN it directly via the plugin's Script Engine (same call the
-// plugin's pane menu uses); (2) installed but no runnable view → point at the
-// script menu; (3) not installed → open the in-app script store; (4) GitHub.
+// (1) installed → invoke the COMMAND the Excalidraw plugin registers for every
+// installed script ("obsidian-excalidraw-plugin:<subpath>/<basename>") — the
+// script engine itself is not a published API, commands are how scripts are
+// meant to be triggered; (2) installed but no command yet → point at the script
+// menu; (3) not installed → open the in-app script store; (4) GitHub.
 async function openCalloutEditor() {
   const SCRIPT_MD = "Comicbook Callout Editor.md";
   try {
     const appRef = _vaultApp();
-    const ad = appRef && appRef.vault && appRef.vault.adapter;
-    const sf = ((ea.plugin && ea.plugin.settings && ea.plugin.settings.scriptFolderPath) || "Excalidraw/Scripts").replace(/\/+$/, "");
-    for (const p of [sf + "/Downloaded/" + SCRIPT_MD, sf + "/" + SCRIPT_MD]) {
-      if (!ad || !(await ad.exists(p))) continue;
-      // Installed. Best case: execute it right now on the active view.
-      try {
-        const se = ea.plugin && ea.plugin.scriptEngine;
-        const f = appRef.vault.getAbstractFileByPath && appRef.vault.getAbstractFileByPath(p);
-        if (f && ea.targetView && se && typeof se.executeScript === "function") {
-          const src = String(await appRef.vault.read(f)).replace(/^---\n[\s\S]*?\n---\n/, "");
-          const nm = (typeof se.getScriptName === "function" && se.getScriptName(f)) || "Comicbook Callout Editor";
-          await se.executeScript(ea.targetView, src, nm, f);
-          return;
-        }
-      } catch (e) { console.error("Strip Director: could not run the Callout Editor directly", e); }
+    const scriptsFolder = (((ea.plugin && ea.plugin.settings && ea.plugin.settings.scriptFolderPath) || "Excalidraw/Scripts").replace(/\/+$/, "")) + "/";
+    const f = (appRef.vault.getMarkdownFiles ? appRef.vault.getMarkdownFiles() : [])
+      .filter((x) => x.name === SCRIPT_MD && x.path.startsWith(scriptsFolder))[0];
+    if (f) {
+      const scriptpath = (f.parent && f.parent.path + "/").split(scriptsFolder)[1] ?? "";
+      const cmd = appRef.commands && appRef.commands.commands &&
+        appRef.commands.commands[`obsidian-excalidraw-plugin:${scriptpath}${f.basename}`];
+      if (cmd && typeof cmd.checkCallback === "function") { cmd.checkCallback(false); return; }
       new Notice("Comicbook Callout Editor is installed — select a callout zone, then run it from the Excalidraw script menu.", 7000);
       return;
     }
-  } catch (e) { /* detection failed — keep going */ }
+  } catch (e) { console.error("Strip Director: Callout Editor lookup failed", e); }
   try {
     const panel = ea.targetView && ea.targetView.toolsPanelRef && ea.targetView.toolsPanelRef.current;
     if (panel && typeof panel.actionOpenScriptInstallDialog === "function") {
