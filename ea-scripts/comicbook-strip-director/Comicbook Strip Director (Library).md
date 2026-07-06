@@ -420,6 +420,126 @@ async function listStrippackFiles() {
   return [...hits].sort();
 }
 
+// --- multi-pack import ------------------------------------------------------
+// Import ONE .strippack, dispatched to the right installer for its declared
+// format — character packs and FX packs can therefore be mixed in a batch.
+// Returns a one-line summary; throws an Error with a friendly message.
+async function importPackFileAt(path) {
+  const base = String(path).split("/").pop();
+  let pack;
+  try { pack = await _readPackAt(path); }
+  catch (e) { throw new Error(base + ": " + ((e && e.message) || "could not read or parse this file.")); }
+  const fmt = pack ? String(pack.format || "") : "";
+  if (fmt === PACK_FORMAT) {
+    const res = await installPack(pack, (done, total) => { if (done % 100 === 0) new Notice(`…${done}/${total} figures`, 1500); });
+    const nothingNew = res.figsAdded === 0 && res.charsAdded === 0 && res.imagesWritten === 0;
+    return nothingNew
+      ? `“${res.name}” was already installed (${res.imagesSkipped} figures present)`
+      : `${res.name}: +${res.charsAdded} character(s), +${res.figsAdded} figure(s), ${res.imagesWritten} new image(s)`;
+  }
+  if (fmt === "strippack-fx/v1") {
+    const res = await importFXPack(pack);
+    return `${res.name}: +${res.added} FX (${res.written} images)`;
+  }
+  if (fmt.startsWith("strippack/") || fmt.startsWith("strippack-fx/"))
+    throw new Error(base + ": needs a newer version of this script (" + fmt + ") — update Comicbook Strip Director.");
+  throw new Error(base + ": not a Strip Director pack.");
+}
+// Import a batch of .strippack files sequentially, with per-file progress and a
+// combined summary/failed notice at the end. Returns how many were attempted.
+async function importPackFiles(files) {
+  const done = [], failed = [];
+  for (let i = 0; i < files.length; i++) {
+    const base = String(files[i]).split("/").pop();
+    if (files.length > 1) new Notice(`Importing ${i + 1}/${files.length}: ${base}…`, 2500);
+    try { done.push(await importPackFileAt(files[i])); }
+    catch (e) { failed.push(String((e && e.message) || base)); }
+  }
+  if (done.length) new Notice("Imported " + done.length + " pack(s):\n• " + done.join("\n• "), 10000);
+  if (failed.length) new Notice("Skipped " + failed.length + " file(s):\n• " + failed.join("\n• "), 10000);
+  return done.length + failed.length;
+}
+// Reload every data cache the importers can touch (characters AND FX).
+async function reloadPackCaches() {
+  await loadRoster(true); await loadAIFigures(true); await loadRosterLegacy(true); await loadFXFigures(true);
+}
+// Checkbox multi-select for pack files (import 25 packs in one go). All boxes
+// start CHECKED — confirm-all is two clicks; uncheck to exclude. Resolves to the
+// selected paths (possibly []), null on cancel, or undefined when the Modal API
+// itself is unavailable (caller then falls back to the suggester).
+function pickPacksMulti(files, title) {
+  return new Promise((resolve) => {
+    let M = null;
+    try { M = ea.obsidian && ea.obsidian.Modal; } catch (e) { /* no modal */ }
+    const appRef = _vaultApp();
+    if (!M || !appRef) { resolve(undefined); return; }
+    const base = (x) => String(x).split("/").pop();
+    const chosen = new Set(files);
+    let confirmed = false;
+    const m = new M(appRef);
+    m.onClose = () => { if (!confirmed) resolve(null); };
+    m.titleEl.setText(title);
+    const body = m.contentEl;
+    const bar = body.createDiv();
+    bar.style.cssText = "display:flex;gap:8px;align-items:center;margin:0 0 8px";
+    const counter = bar.createEl("span", { text: `${chosen.size} of ${files.length} selected` });
+    counter.style.cssText = "font-size:0.85em;color:var(--text-muted)";
+    const toggleAll = bar.createEl("button", { text: "Toggle all" });
+    toggleAll.style.marginLeft = "auto";
+    const list = body.createDiv();
+    list.style.cssText = "max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;border:1px solid var(--background-modifier-border);border-radius:5px;padding:6px";
+    const boxes = [];
+    const recount = () => { counter.setText(`${chosen.size} of ${files.length} selected`); };
+    for (const f of files) {
+      const row = list.createEl("label");
+      row.style.cssText = "display:flex;gap:8px;align-items:center;cursor:pointer;padding:2px 4px";
+      const cb = row.createEl("input");
+      cb.type = "checkbox"; cb.checked = true;
+      cb.addEventListener("change", () => { if (cb.checked) chosen.add(f); else chosen.delete(f); recount(); });
+      boxes.push(cb);
+      row.createEl("span", { text: base(f) });
+    }
+    toggleAll.addEventListener("click", () => {
+      const check = chosen.size < files.length;   // any unchecked → check all, else clear
+      boxes.forEach((cb, i) => { cb.checked = check; if (check) chosen.add(files[i]); else chosen.delete(files[i]); });
+      recount();
+    });
+    const foot = body.createDiv();
+    foot.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin:10px 0 0";
+    const cancel = foot.createEl("button", { text: "Cancel" });
+    cancel.addEventListener("click", () => m.close());
+    const go = foot.createEl("button", { text: "Import selected" });
+    go.classList.add("mod-cta");
+    go.addEventListener("click", () => { confirmed = true; m.close(); resolve(files.filter((f) => chosen.has(f))); });
+    m.open();
+  });
+}
+// Shared import-button flow: list packs → multi-select (checkboxes) → install
+// every selected pack. Single pack skips straight to a confirm suggester; if the
+// Modal API is unavailable the suggester fallback offers one-or-ALL.
+// Returns true when at least one import was attempted (caller then repaints).
+async function importPacksFlow(placeholder) {
+  const files = await listStrippackFiles();
+  if (!files.length) {
+    new Notice("No .strippack files found in your Excalidraw scripts folder (or Scripts/Downloaded). Unzip the product download, copy the .strippack there with Finder/Explorer (drag-dropping onto Obsidian silently ignores it), then retry.", 9000);
+    return false;
+  }
+  const base = (x) => String(x).split("/").pop();
+  if (files.length === 1) {
+    const one = await pickFromList(files, files.map(base), placeholder);
+    return one ? (await importPackFiles([one])) > 0 : false;
+  }
+  const picked = await pickPacksMulti(files, placeholder);
+  if (picked === undefined) {                    // no Modal API — suggester with an "Import ALL" row
+    const ALL = "__import_all__";
+    const chosen = await pickFromList([ALL, ...files], [`⬇ Import ALL ${files.length} packs`, ...files.map(base)], placeholder);
+    if (!chosen) return false;
+    return (await importPackFiles(chosen === ALL ? files : [chosen])) > 0;
+  }
+  if (!picked || !picked.length) return false;   // cancelled, or everything unchecked
+  return (await importPackFiles(picked)) > 0;
+}
+
 // Snapshot a vault file to a single rolling .import-backup sibling (bounded — one
 // pre-import snapshot per file, overwritten each import, so backups never pile up).
 async function _backupVaultFile(adapter, path) {
@@ -1742,18 +1862,7 @@ function renderBuildPage(contentEl, tab, ctx) {
     addStoreBtn(rfxHead, "🛒 More packs");
     impFx.onclick = async () => {
       try {
-        const files = await listStrippackFiles();
-        if (!files.length) { new Notice("No .strippack files found in your Excalidraw scripts folder. Unzip the product download, copy the .strippack there with Finder/Explorer (drag-dropping onto Obsidian silently ignores it), then retry.", 9000); return; }
-        const chosen = await pickFromList(files, files.map((p) => p.split("/").pop()), "Pick a Comic FX pack");
-        if (!chosen) return;
-        let pk;
-        try { pk = await _readPackAt(chosen); }
-        catch (e) { new Notice(String((e && e.message) || "Could not read that pack."), 8000); return; }
-        if (!pk || pk.format !== "strippack-fx/v1") { new Notice("That file isn't a Comic FX pack (strippack-fx/v1)."); return; }
-        new Notice(`Installing ${pk.name || "FX pack"}…`, 3000);
-        const res = await importFXPack(pk);
-        new Notice(`Imported ${res.name}: +${res.added} FX (${res.written} images).`, 6000);
-        await loadFXFigures(true); await buildPanel(tab, ctx);
+        if (await importPacksFlow("Pick an FX pack — or import all")) { await reloadPackCaches(); await buildPanel(tab, ctx); }
       } catch (e) { console.error("Strip Director: FX import failed", e); new Notice("FX import failed — see console."); }
     };
     if (rfx.length) {
@@ -1838,34 +1947,7 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
     importBtn.title = "Install a .strippack character pack";
     importBtn.onclick = async () => {
       try {
-        const files = await listStrippackFiles();
-        if (!files.length) {
-          new Notice("No .strippack files found in your Excalidraw scripts folder. Unzip the product download, copy the .strippack there with Finder/Explorer (drag-dropping onto Obsidian silently ignores it), then try again.", 9000);
-          return;
-        }
-        const labels = files.map((p) => p.split("/").pop());
-        const chosen = await pickFromList(files, labels, "Pick a character pack to import");
-        if (!chosen) return;
-        let pack;
-        try { pack = await _readPackAt(chosen); }
-        catch (e) { new Notice(String((e && e.message) || "Could not read or parse that pack file."), 8000); return; }
-        if (!pack || pack.format !== PACK_FORMAT) {
-          const fmt = pack && String(pack.format || "");
-          new Notice(fmt && fmt.startsWith("strippack/")
-            ? "This pack needs a newer version of the script (" + fmt + ") — update Comicbook Strip Director, then import again."
-            : "That file is not a Strip Director pack (" + PACK_FORMAT + ").", 8000);
-          return;
-        }
-        new Notice(`Installing “${pack.name || pack.packId}” — ${(pack.figures || []).length} figures…`, 4000);
-        const res = await installPack(pack, (done, total) => { if (done % 100 === 0) new Notice(`…${done}/${total} figures`, 1500); });
-        const nothingNew = res.figsAdded === 0 && res.charsAdded === 0 && res.imagesWritten === 0;
-        if (nothingNew) {
-          new Notice(`“${res.name}” is already installed — verified, nothing new to add (${res.imagesSkipped} figures already present).`, 7000);
-        } else {
-          const dup = res.imagesSkipped ? `, ${res.imagesSkipped} already present` : "";
-          new Notice(`Imported ${res.name}: +${res.charsAdded} character(s), +${res.figsAdded} figure(s), ${res.imagesWritten} new image(s)${dup}.`, 8000);
-        }
-        await refreshPanel(true);
+        if (await importPacksFlow("Pick a character pack — or import all")) { await reloadPackCaches(); await buildPanel(tab, ctx); }
       } catch (e) {
         console.error("Strip Director: import failed", e);
         new Notice("Import failed — see console for details.");
