@@ -400,34 +400,22 @@ function _decodePng(dataUri) {
   return null;
 }
 
-// Discover *.strippack files the user could import — ONLY inside the Excalidraw
-// scripts folder tree (root, Downloaded/, the data folder, product subfolders).
-// NOTE: Obsidian does not index unknown extensions, so vault.getFiles() can't see
-// .strippack — we walk the filesystem adapter instead. Deliberately NOT the whole
-// vault: packs live with the script, and a vault-wide scan surfaced unrelated files.
+// Discover *.strippack files the user could import — EXACTLY two places, no
+// recursion: the Excalidraw scripts folder itself and its Downloaded/ subfolder
+// (where the script-store installs). NOTE: Obsidian does not index unknown
+// extensions, so vault.getFiles() can't see .strippack — we list the adapter.
 async function listStrippackFiles() {
   const appRef = _vaultApp();
   if (!appRef || !appRef.vault || !appRef.vault.adapter) return [];
   const adapter = appRef.vault.adapter;
   const hits = new Set();
-  const queue = [_scriptsRoot()];
-  const seenDirs = new Set();
-  let budget = 120;                              // folder cap so a huge scripts tree stays snappy
-  while (queue.length && budget-- > 0) {
-    const d = queue.shift();
-    if (!d || seenDirs.has(d)) continue;
-    seenDirs.add(d);
-    let listing;
+  const root = _scriptsRoot();
+  for (const d of [root, root + "/Downloaded"]) {
     try {
       if (!(await adapter.exists(d))) continue;
-      listing = await adapter.list(d);
-    } catch (e) { continue; }
-    for (const f of (listing.files || [])) { if (String(f).toLowerCase().endsWith(".strippack")) hits.add(f); }
-    for (const sub of (listing.folders || [])) {
-      const base = String(sub).split("/").pop();
-      if (base === ".obsidian" || base === ".trash" || base === ".git" || base === "node_modules") continue;
-      queue.push(sub);
-    }
+      const listing = await adapter.list(d);
+      for (const f of (listing.files || [])) { if (String(f).toLowerCase().endsWith(".strippack")) hits.add(f); }
+    } catch (e) { /* unreadable — skip */ }
   }
   return [...hits].sort();
 }

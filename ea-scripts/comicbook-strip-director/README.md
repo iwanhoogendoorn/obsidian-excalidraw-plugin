@@ -100,7 +100,8 @@ Everything the script draws is tagged `customData.stripDirector`; it never modif
   scripts folder** (or `Scripts/Downloaded/`) **with Finder / Explorer** — drag-dropping
   onto the Obsidian window silently ignores unknown file types. Then use
   **⬇ Import pack…** / **⬇ Import FX pack…** in the script panel. The import
-  picker only looks inside the scripts folder and only lists `.strippack` files.
+  picker only lists `.strippack` files sitting directly in the scripts folder
+  or in `Scripts/Downloaded/` — not in subfolders or elsewhere in the vault.
 
 ## License
 
