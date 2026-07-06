@@ -37,8 +37,8 @@ full FX set: **[comicstripdirector.com](https://comicstripdirector.com/)**.
 
 > [!WARNING]
 > **Using Obsidian Sync?** Exclude the data folder
-> `<Excalidraw>/Scripts/Comic Strip Director` from sync (older installs:
-> `Comicbook Strip Director (Library)`). Imported packs contain a **lot** of
+> `<Excalidraw>/Scripts/Comic Strip Director (Library)` from sync (older installs:
+> `Comic Strip Director` or `Comicbook Strip Director (Library)`). Imported packs contain a **lot** of
 > images — they can eat your Obsidian Sync space and make Obsidian slower.
 
 > [!TIP]
