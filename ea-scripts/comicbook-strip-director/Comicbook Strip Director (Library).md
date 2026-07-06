@@ -514,6 +514,52 @@ function pickPacksMulti(files, title) {
     m.open();
   });
 }
+// --- pack provenance → website product (picker filter sections) -------------
+// Split packs stamp each figure with their PART id (e.g. "fantasy-wizard");
+// the website sells the parent PRODUCT ("Fantasy Pack"). This static catalog
+// mirrors comicstripdirector.com; installedPacks records (which carry the
+// `product` field from the pack file) take precedence, so future packs group
+// correctly without a script update. Order here = chip display order.
+const PACK_PRODUCTS = [
+  { id: "core-free", nm: "Original Cast (free)" },
+  { id: "core-new", nm: "Original Cast" },
+  { id: "core-legacy", nm: "Original Cast — Legacy" },
+  { id: "fantasy", nm: "Fantasy Pack" },
+  { id: "sci-fi", nm: "Sci-Fi Pack" },
+  { id: "action-heroes", nm: "Action Heroes Pack" },
+  { id: "professions", nm: "Professions Pack" },
+  { id: "comic-fx", nm: "Comic FX Pack" },
+  { id: "founding-eight", nm: "Founding Eight" },
+  { id: "everything-premium", nm: "Everything Bundle" },
+  { id: "everything", nm: "Everything Bundle" },
+  { id: "all-new", nm: "All Characters — New Style" },
+  { id: "all-legacy", nm: "All Characters — Legacy" },
+];
+function _installedPackProducts() {
+  const map = new Map();
+  try {
+    const s = (ea.getScriptSettings && ea.getScriptSettings()) || {};
+    for (const r of (s.installedPacks || [])) if (r && r.packId) map.set(r.packId, r.product || r.packId);
+  } catch (e) { /* no settings */ }
+  return map;
+}
+function packProductOf(packId, installed) {
+  if (!packId) return "";                        // pre-pack / dev-library content
+  if (installed && installed.has(packId)) return installed.get(packId);
+  for (const p of PACK_PRODUCTS) if (packId === p.id || packId.startsWith(p.id + "-")) return p.id;
+  return packId;                                  // per-character packs are their own product
+}
+function packProductLabel(product) {
+  if (!product) return "My library";
+  const hit = PACK_PRODUCTS.find((p) => p.id === product);
+  if (hit) return hit.nm;
+  let m = /^char-(.+)$/.exec(product);
+  if (m) return prettyId(m[1]) + " — Character Pack";
+  m = /^legacy-(.+)$/.exec(product);
+  if (m) return prettyId(m[1]) + " — Legacy";
+  return prettyId(product);
+}
+
 // Shared import-button flow: list packs → multi-select (checkboxes) → install
 // every selected pack. Single pack skips straight to a confirm suggester; if the
 // Modal API is unavailable the suggester fallback offers one-or-ALL.
@@ -2013,6 +2059,7 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
       // Restore last pick ("" is a valid value = the Generic character / Plain role).
       let selChar = (prefs.lastChar === "" || chars.some((c) => c.id === prefs.lastChar)) ? prefs.lastChar : null;
       let selFunc = (selChar != null && typeof prefs.lastFunc === "string") ? prefs.lastFunc : null;
+      let selPack = typeof prefs.lastPack === "string" ? prefs.lastPack : null;   // null = all packs
 
       // Library toggle: New (all characters) ⇄ Legacy (original set). Shown only
       // when a legacy roster exists. Switching swaps roster + lookup namespace.
@@ -2089,10 +2136,41 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
         const hasLegacyRoster = ((rosterLegacy && rosterLegacy.characters) || []).length > 0;
         const inLib = (f) => !hasLegacyRoster || (AI_LIB === "legacy" ? f.lib === "legacy" : f.lib !== "legacy");
         const rank = (f) => (f.action === "present" ? 3 : f.action === "stand" ? 2 : f.action === "wave" ? 1 : 0) * 2 + (f.lib !== "legacy" ? 1 : 0);
+        // PACK FILTER (step 0) — group figures by the website product they came
+        // from (split parts collapse into their parent pack). Chips only appear
+        // when more than one product is present, so pack-less libraries see no noise.
+        const instProducts = _installedPackProducts();
+        const packsHere = new Map();             // product → figure count (lib-filtered)
+        for (const f of list) {
+          if (!inLib(f)) continue;
+          const prod = packProductOf(f.pack, instProducts);
+          packsHere.set(prod, (packsHere.get(prod) || 0) + 1);
+        }
+        if (selPack != null && !packsHere.has(selPack)) selPack = null;  // pack no longer present
+        if (packsHere.size > 1) {
+          stepLabel(stepWrap, "Pack");
+          const pRow = stepWrap.createDiv();
+          pRow.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;margin:0 0 2px";
+          const chip = (label, active, onClick) => {
+            const b = pRow.createEl("button", { text: label });
+            b.style.cssText = "font-size:0.68em;padding:2px 8px;border-radius:5px;cursor:pointer;border:1px solid " +
+              (active ? "var(--interactive-accent);background:var(--interactive-accent);color:var(--text-on-accent)"
+                      : "var(--background-modifier-border);background:var(--background-secondary);color:var(--text-normal)");
+            makeActivatable(b, onClick);
+          };
+          chip("All packs", selPack == null, () => { selPack = null; savePrefs({ lastPack: null }); render(); });
+          const order = (prod) => { const i = PACK_PRODUCTS.findIndex((x) => x.id === prod); return i < 0 ? PACK_PRODUCTS.length : i; };
+          [...packsHere.keys()].sort((a, b) => order(a) - order(b) || String(a).localeCompare(String(b))).forEach((prod) => {
+            chip(packProductLabel(prod) + " · " + packsHere.get(prod), selPack === prod,
+              () => { selPack = prod; savePrefs({ lastPack: prod }); render(); });
+          });
+        }
+
         const charSet = new Set(), charFuncs = new Map(), comboActs = new Map();
         const charRep = new Map(), comboRep = new Map(), comboFig = new Map();
         for (const f of list) {
           if (!inLib(f)) continue;
+          if (selPack != null && packProductOf(f.pack, instProducts) !== selPack) continue;
           const ch = f.character || "", fn = f.function || "", key = ch + "|" + fn;
           charSet.add(ch);
           if (!charFuncs.has(ch)) charFuncs.set(ch, new Set());
@@ -2175,10 +2253,11 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
           // Stamp the indexed figure entry directly — robust to any cacheKey
           // namespace an imported pack uses. Composer only as fallback.
           const entry = comboFig.get(selChar + "|" + selFunc + "|" + a.id);
-          tile(g3, entry ? aiThumbURL(entry) : thumb(selChar, selFunc, a.id), a.label || a.id, false, async () => {
+          const cell = tile(g3, entry ? aiThumbURL(entry) : thumb(selChar, selFunc, a.id), a.label || a.id, false, async () => {
             if (entry && ctx.placeAIFigure) { await ctx.placeAIFigure(entry); return; }
             if (ctx.composeOrPlace) await ctx.composeOrPlace({ character: selChar, func: selFunc, action: a.id, lib: AI_LIB });
           });
+          if (entry && entry.pack) cell.title = (a.label || a.id) + " — " + packProductLabel(packProductOf(entry.pack, instProducts));
         });
       }
       rerenderPicker = render;
