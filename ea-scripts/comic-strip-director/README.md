@@ -8,10 +8,10 @@ skills required.
 ![Comic Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](demo.gif)
 
 
-**The free tier comes preinstalled**: the 8-character Core Cast (176 poses), all 30
-panel layouts, and 3 painted FX (POW! BOOM! ZAP!) work out of the box — no imports,
-no extra downloads. More characters, costumes, themes and the full FX set:
-**[comicstripdirector.com](https://comicstripdirector.com/)**.
+**The free tier is one click away**: the 8-character Core Cast (176 poses), all 30
+panel layouts, and 3 painted FX (POW! BOOM! ZAP!) install via the **⭐ Get the free
+starter pack** button inside the script. More characters, costumes, themes and the
+full FX set: **[comicstripdirector.com](https://comicstripdirector.com/)**.
 
 ![Comic Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](screenshot.png)
 
@@ -21,8 +21,8 @@ Eight hand-drawn characters, preinstalled and ready to pose — each available i
 22 actions, and dressable in any costume pack you add later.
 
 <table>
-<tr><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/mia-present.png" alt="Mia" width="96"><br><b>Mia</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/walt-present.png" alt="Walt" width="96"><br><b>Walt</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/priya-present.png" alt="Priya" width="96"><br><b>Priya</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/sam-present.png" alt="Sam" width="96"><br><b>Sam</b></td></tr>
-<tr><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/nadia-present.png" alt="Dr. Nadia" width="96"><br><b>Dr. Nadia</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/rico-present.png" alt="Rico" width="96"><br><b>Rico</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/grace-present.png" alt="Grace" width="96"><br><b>Grace</b></td><td align="center"><img src="Comicbook%20Strip%20Director%20(Library)/New%20Figures/felix-present.png" alt="Felix" width="96"><br><b>Felix</b></td></tr>
+<tr><td align="center"><img src="previews/free/mia-present.png" alt="Mia" width="96"><br><b>Mia</b></td><td align="center"><img src="previews/free/walt-present.png" alt="Walt" width="96"><br><b>Walt</b></td><td align="center"><img src="previews/free/priya-present.png" alt="Priya" width="96"><br><b>Priya</b></td><td align="center"><img src="previews/free/sam-present.png" alt="Sam" width="96"><br><b>Sam</b></td></tr>
+<tr><td align="center"><img src="previews/free/nadia-present.png" alt="Dr. Nadia" width="96"><br><b>Dr. Nadia</b></td><td align="center"><img src="previews/free/rico-present.png" alt="Rico" width="96"><br><b>Rico</b></td><td align="center"><img src="previews/free/grace-present.png" alt="Grace" width="96"><br><b>Grace</b></td><td align="center"><img src="previews/free/felix-present.png" alt="Felix" width="96"><br><b>Felix</b></td></tr>
 </table>
 
 ## The extended cast — available at [comicstripdirector.com](https://comicstripdirector.com/)
@@ -61,55 +61,49 @@ are on the site too.
 Everything the script draws is tagged `customData.stripDirector`; it never modifies
 `comicCallout`.
 
-## Install
+## Install & get started (TL;DR)
 
-**Just two files.**
+1. **Get the script** — for the latest version, download **Comic Strip Director**
+   from the official Excalidraw script library (Obsidian → Excalidraw →
+   **script store**). *Manual alternative:* copy the two files from this folder —
+   `Comic Strip Director.md` and `Comic Strip Director.svg` — into
+   `<Excalidraw>/Scripts`.
+2. **Open Comic Strip Director** — open a drawing and run it from the Excalidraw
+   script menu.
+3. Click **⭐ Get the free starter pack** at the top of the panel. This creates the
+   required data folder AND downloads the free images from GitHub straight into the
+   script — Core Cast (8 characters, every action) plus the POW!/BOOM!/ZAP! FX,
+   with a progress bar.
+4. **Download additional packs** from **[comicstripdirector.com](https://comicstripdirector.com/)**.
+5. **Place the `.strippack` files** in `<Excalidraw>/Scripts` or
+   `<Excalidraw>/Scripts/Downloaded`.
+6. **Import them in the script** with the **⬇ Import pack…** / **⬇ Import FX pack…**
+   buttons — every `.strippack` in those two folders shows up, and you can import
+   them **all at once** (checkbox list). The script only accepts `.strippack` files
+   (no `.zip`s) to avoid confusion — unzip the product download first.
+7. **Start creating your comics!**
 
-1. Install the **Obsidian Excalidraw plugin** (2.19.1 or higher) and enable the
-   **Script Engine**.
-2. Copy **two files into the scripts folder itself** (the folder set under
-   *Excalidraw → Settings → Script Engine*, default `Excalidraw/Scripts`) — a common
-   mistake is dropping them one level up, next to the Scripts folder, where the
-   script engine won't find them:
+> [!WARNING]
+> **Using Obsidian Sync?** Exclude the data folder
+> `<Excalidraw>/Scripts/Comic Strip Director` from sync (older installs:
+> `Comicbook Strip Director (Library)`). Imported packs contain a **lot** of
+> images — they can eat your Obsidian Sync space and make Obsidian slower.
 
-   ```
-   Excalidraw/
-   └── Scripts/                                      ← they go IN here
-       ├── Comic Strip Director.md     ← the script
-       └── Comic Strip Director.svg    ← toolbar icon (keep the basename)
-   ```
-
-   (Installed via the Excalidraw **script store** instead? The script then lives in
-   `Scripts/Downloaded/` — that works too.)
-
-3. Reopen your drawing (or reload Obsidian) and run **Comic Strip Director**
-   from the Excalidraw script menu.
-4. In the panel, click **⭐ Get the free starter pack** — one click downloads the
-   free Core Cast (8 characters, every action) plus the POW!/BOOM!/ZAP! FX and
-   imports them with a progress bar. That's it.
-
-**Offline / manual route:** download
-[`free/core-free.strippack`](free/core-free.strippack) and
-[`free/comic-fx-free.strippack`](free/comic-fx-free.strippack) yourself, copy them
-into the scripts folder **with Finder / Explorer** (drag-dropping onto the Obsidian
-window silently ignores unknown file types), then click **⬇ Import pack…** in the
-panel. Premium packs install exactly the same way.
+> [!TIP]
+> After importing a strip pack, **close and reopen Obsidian** so file indexing can
+> do a good job.
 
 ### Extras
 
 - [`free/core-free.strippack`](free/core-free.strippack) /
   [`free/comic-fx-free.strippack`](free/comic-fx-free.strippack) — the free tier as
-  plain pack files (what the ⭐ starter button downloads for you).
+  plain pack files (what the ⭐ starter button downloads for you) — for offline /
+  manual installs: copy them into the scripts folder **with Finder / Explorer**
+  (drag-dropping onto the Obsidian window silently ignores unknown file types),
+  then **⬇ Import pack…**.
 - [`free/layouts-free.zip`](free/layouts-free.zip) — the 30 page templates as
   standalone SVG + PNG, for use in *other* tools (Miro, Google Drawings, Figma, …).
   The script itself has all 30 built in.
-- **Add-on packs** — get them at [comicstripdirector.com](https://comicstripdirector.com/),
-  **unzip the product download**, then copy the `.strippack` into your **Excalidraw
-  scripts folder** (or `Scripts/Downloaded/`) **with Finder / Explorer** — drag-dropping
-  onto the Obsidian window silently ignores unknown file types. Then use
-  **⬇ Import pack…** / **⬇ Import FX pack…** in the script panel. The import
-  picker only lists `.strippack` files sitting directly in the scripts folder
-  or in `Scripts/Downloaded/` — not in subfolders or elsewhere in the vault.
 
 ## License
 
