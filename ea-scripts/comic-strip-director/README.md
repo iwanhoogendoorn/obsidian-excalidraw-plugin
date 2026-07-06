@@ -27,10 +27,11 @@ full FX set: **[comicstripdirector.com](https://comicstripdirector.com/)**.
    script — Core Cast (8 characters, every action) plus the POW!/BOOM!/ZAP! FX,
    with a progress bar.
 4. **Download additional packs** from **[comicstripdirector.com](https://comicstripdirector.com/)**.
-5. **Place the `.strippack` files** in `<Excalidraw>/Scripts` or
-   `<Excalidraw>/Scripts/Downloaded`.
+5. **Place the `.strippack` files** in `<Excalidraw>/Scripts`,
+   `<Excalidraw>/Scripts/Downloaded`, or the `Comic Strip Director (Library)`
+   data folder.
 6. **Import them in the script** with the **⬇ Import pack…** / **⬇ Import FX pack…**
-   buttons — every `.strippack` in those two folders shows up, and you can import
+   buttons — every `.strippack` in those folders shows up, and you can import
    them **all at once** (checkbox list). The script only accepts `.strippack` files
    (no `.zip`s) to avoid confusion — unzip the product download first.
 7. **Start creating your comics!**
