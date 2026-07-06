@@ -601,6 +601,58 @@ function createImportProgressMulti(hosts) {
   };
 }
 
+// --- free starter pack (two-file install) -----------------------------------
+// The script ships with NO data folder — users copy just the .md and .svg. The
+// free tier (Core Cast + FX) is fetched on demand from the repo and pushed
+// through the NORMAL import pipeline (progress overlay, section locks, cancel,
+// idempotent re-import). The downloaded .strippacks land in the scripts folder
+// like any manually-dropped pack, so the manual route stays identical.
+const FREE_PACK_URLS = [
+  "https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comicbook-strip-director/free/core-free.strippack",
+  "https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comicbook-strip-director/free/comic-fx-free.strippack",
+];
+const _FREE_MANUAL_HINT = "Get the packs manually instead: download them from the GitHub repo's free/ folder (or comicstripdirector.com), drop them in your Excalidraw scripts folder, then use ⬇ Import pack…";
+function _freeTierInstalled() {
+  try {
+    const s = (ea.getScriptSettings && ea.getScriptSettings()) || {};
+    return (s.installedPacks || []).some((r) => r && (r.product === "core-free" || r.packId === "core-free"));
+  } catch (e) { return false; }
+}
+async function downloadFreeStarterPacks(makeProgress) {
+  if (_importActive) { new Notice("An import is already running — wait for it to finish (or cancel it) first."); return false; }
+  _importActive = true;
+  const prog = makeProgress ? makeProgress() : null;
+  try {
+    const ad = _vaultApp() && _vaultApp().vault && _vaultApp().vault.adapter;
+    if (!ad) { new Notice("No vault adapter available."); return false; }
+    const req = ea.obsidian && ea.obsidian.requestUrl;
+    const root = _scriptsRoot();
+    const local = [];
+    for (let i = 0; i < FREE_PACK_URLS.length; i++) {
+      if (prog && prog.cancelled) return false;
+      const url = FREE_PACK_URLS[i];
+      const name = url.split("/").pop();
+      const dest = root + "/" + name;
+      if (prog) prog.pack(i + 1, FREE_PACK_URLS.length, name + " — downloading…");
+      if (!(await ad.exists(dest))) {              // already downloaded earlier → reuse
+        if (!req) { new Notice("This app version can't download files. " + _FREE_MANUAL_HINT, 12000); return false; }
+        try {
+          const res = await req({ url, throw: true });
+          await ad.writeBinary(dest, res.arrayBuffer);
+        } catch (e) {
+          console.error("Strip Director: free pack download failed", url, e);
+          new Notice(name + ": download failed — check your internet connection. " + _FREE_MANUAL_HINT, 12000);
+          return false;
+        }
+      }
+      local.push(dest);
+      if (prog) prog.packDone(i + 1, FREE_PACK_URLS.length);
+    }
+    if (prog && prog.cancelled) return false;
+    return (await importPackFiles(local, prog)) > 0;
+  } finally { _importActive = false; if (prog) prog.done(); }
+}
+
 // --- pack provenance → website product (picker filter sections) -------------
 // Split packs stamp each figure with their PART id (e.g. "fantasy-wizard");
 // the website sells the parent PRODUCT ("Fantasy Pack"). This static catalog
@@ -2104,6 +2156,17 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
     const packBar = sec.createDiv();
     packBar.style.display = "flex"; packBar.style.flexWrap = "wrap"; packBar.style.gap = "6px"; packBar.style.margin = "0 0 8px";
 
+    if (!_freeTierInstalled()) {
+      const freeBtn = packBar.createEl("button", { text: "⭐ Get the free starter pack" });
+      styleActionBtn(freeBtn);
+      freeBtn.style.background = "var(--interactive-accent)"; freeBtn.style.color = "var(--text-on-accent)"; freeBtn.style.borderColor = "var(--interactive-accent)";
+      freeBtn.title = "One click: downloads the free Core Cast + FX packs and imports them";
+      freeBtn.onclick = async () => {
+        try {
+          if (await downloadFreeStarterPacks(() => createImportProgressMulti([tab.__csdCharSection, tab.__csdFxSection]))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
+        } catch (e) { console.error("Strip Director: starter pack install failed", e); new Notice("Starter pack install failed — see console."); }
+      };
+    }
     const importBtn = packBar.createEl("button", { text: "⬇ Import pack…" });
     styleActionBtn(importBtn);
     importBtn.title = "Install a .strippack character pack";
@@ -2346,7 +2409,7 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
           const disabledHere = charsAll.some((c) => charSet.has(c.id) && DISABLED.has(c.id));
           const none = g1.createEl("div", { text: disabledHere
             ? "Every imported character is hidden — open ⚙ Manage characters to show some."
-            : "No characters imported yet — use ⬇ Import pack… above, or" });
+            : "No characters yet — click ⭐ Get the free starter pack above (one click), import a .strippack, or" });
           none.style.fontSize = "0.74em"; none.style.color = "var(--text-muted)";
           if (!disabledHere) addStoreLink(none, " get characters at comicstripdirector.com →");
         }

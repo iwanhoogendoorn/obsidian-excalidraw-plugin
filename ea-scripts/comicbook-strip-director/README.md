@@ -63,9 +63,11 @@ Everything the script draws is tagged `customData.stripDirector`; it never modif
 
 ## Install
 
+**Just two files.**
+
 1. Install the **Obsidian Excalidraw plugin** (2.19.1 or higher) and enable the
    **Script Engine**.
-2. Copy **all three** items **into the scripts folder itself** (the folder set under
+2. Copy **two files into the scripts folder itself** (the folder set under
    *Excalidraw → Settings → Script Engine*, default `Excalidraw/Scripts`) — a common
    mistake is dropping them one level up, next to the Scripts folder, where the
    script engine won't find them:
@@ -74,24 +76,30 @@ Everything the script draws is tagged `customData.stripDirector`; it never modif
    Excalidraw/
    └── Scripts/                                      ← they go IN here
        ├── Comicbook Strip Director (Library).md     ← the script
-       ├── Comicbook Strip Director (Library).svg    ← toolbar icon (keep the basename)
-       └── Comicbook Strip Director (Library)/       ← data folder (free characters + FX)
+       └── Comicbook Strip Director (Library).svg    ← toolbar icon (keep the basename)
    ```
 
    (Installed via the Excalidraw **script store** instead? The script then lives in
-   `Scripts/Downloaded/` — that works too: put the data folder either next to it in
-   `Downloaded/` or in the `Scripts/` root.)
+   `Scripts/Downloaded/` — that works too.)
 
 3. Reopen your drawing (or reload Obsidian) and run **Comicbook Strip Director**
-   from the Excalidraw script menu. The Core Cast and free FX are already in the
-   picker — if the picker says "No characters imported yet", the data folder isn't
-   sitting next to the `.md` inside `Scripts/`.
+   from the Excalidraw script menu.
+4. In the panel, click **⭐ Get the free starter pack** — one click downloads the
+   free Core Cast (8 characters, every action) plus the POW!/BOOM!/ZAP! FX and
+   imports them with a progress bar. That's it.
 
-> Easiest way to grab everything: **Code → Download ZIP** on this repo (or clone),
-> then copy this script's folder contents as above.
+**Offline / manual route:** download
+[`free/core-free.strippack`](free/core-free.strippack) and
+[`free/comic-fx-free.strippack`](free/comic-fx-free.strippack) yourself, copy them
+into the scripts folder **with Finder / Explorer** (drag-dropping onto the Obsidian
+window silently ignores unknown file types), then click **⬇ Import pack…** in the
+panel. Premium packs install exactly the same way.
 
 ### Extras
 
+- [`free/core-free.strippack`](free/core-free.strippack) /
+  [`free/comic-fx-free.strippack`](free/comic-fx-free.strippack) — the free tier as
+  plain pack files (what the ⭐ starter button downloads for you).
 - [`free/layouts-free.zip`](free/layouts-free.zip) — the 30 page templates as
   standalone SVG + PNG, for use in *other* tools (Miro, Google Drawings, Figma, …).
   The script itself has all 30 built in.
