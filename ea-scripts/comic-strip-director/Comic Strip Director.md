@@ -28,6 +28,36 @@ with painted sound-effect FX — no drawing skills required.
 
 Tags everything in `customData.stripDirector` and never touches `comicCallout`.
 
+![](https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/demo.gif)
+
+## Quick start
+
+1. Install this script (you just did — this is the store).
+2. Open a drawing and run **Comic Strip Director** from the script menu.
+3. Click **⭐ Get the free starter pack** at the top of the panel — one click
+   downloads and imports the free Core Cast (8 characters, 176 poses) plus
+   3 painted FX, with a progress bar. It also creates the data folder for you.
+4. More characters, costumes, themes and the full FX set:
+   [comicstripdirector.com](https://comicstripdirector.com/). Unzip a purchase,
+   drop the `.strippack` in your scripts folder (or `Scripts/Downloaded/`), then
+   **Import pack…** — you can import many packs in one go.
+
+> **Using Obsidian Sync?** Consider excluding the `Comic Strip Director` data
+> folder from sync — packs contain a lot of images. And after a big import,
+> restart Obsidian so indexing catches up.
+
+## The free Core Cast
+
+|  |  |  |  |
+|---|---|---|---|
+|![](https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/previews/free/mia-present.png)|![](https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/previews/free/walt-present.png)|![](https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/previews/free/priya-present.png)|![](https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/previews/free/sam-present.png)|
+|**Mia**|**Walt**|**Priya**|**Sam**|
+|![](https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/previews/free/nadia-present.png)|![](https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/previews/free/rico-present.png)|![](https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/previews/free/grace-present.png)|![](https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/previews/free/felix-present.png)|
+|**Dr. Nadia**|**Rico**|**Grace**|**Felix**|
+
+Full documentation, the extended cast, and the free packs as plain files:
+[github.com/iwanhoogendoorn/obsidian-excalidraw-plugin](https://github.com/iwanhoogendoorn/obsidian-excalidraw-plugin/tree/main/ea-scripts/comic-strip-director)
+
 Requires Excalidraw plugin 2.19.1 or higher.
 
 ```javascript
