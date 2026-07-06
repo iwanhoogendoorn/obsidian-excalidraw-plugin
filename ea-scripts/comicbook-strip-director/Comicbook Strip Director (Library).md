@@ -424,12 +424,17 @@ async function listStrippackFiles() {
 // Import ONE .strippack, dispatched to the right installer for its declared
 // format — character packs and FX packs can therefore be mixed in a batch.
 // Returns a one-line summary; throws an Error with a friendly message.
+const _CANCEL_MSG = "__import_cancelled__";
 async function importPackFileAt(path, prog) {
   const base = String(path).split("/").pop();
+  if (prog && prog.cancelled) throw new Error(_CANCEL_MSG);
   let pack;
   try { pack = await _readPackAt(path); }
   catch (e) { throw new Error(base + ": " + ((e && e.message) || "could not read or parse this file.")); }
-  const onFig = (done, total) => { if (prog) prog.figures(done, total); };
+  const onFig = (done, total) => {
+    if (prog && prog.cancelled) throw new Error(_CANCEL_MSG);   // aborts before index merges — nothing half-written
+    if (prog) prog.figures(done, total);
+  };
   const fmt = pack ? String(pack.format || "") : "";
   if (fmt === PACK_FORMAT) {
     const res = await installPack(pack, onFig);
@@ -450,13 +455,19 @@ async function importPackFileAt(path, prog) {
 // combined summary/failed notice at the end. Returns how many were attempted.
 async function importPackFiles(files, prog) {
   const done = [], failed = [];
+  let cancelled = false;
   for (let i = 0; i < files.length; i++) {
+    if (prog && prog.cancelled) { cancelled = true; break; }
     const base = String(files[i]).split("/").pop();
     if (prog) prog.pack(i + 1, files.length, base);
     try { done.push(await importPackFileAt(files[i], prog)); }
-    catch (e) { failed.push(String((e && e.message) || base)); }
+    catch (e) {
+      if (String(e && e.message) === _CANCEL_MSG) { cancelled = true; break; }
+      failed.push(String((e && e.message) || base));
+    }
     if (prog) prog.packDone(i + 1, files.length);
   }
+  if (cancelled) new Notice(`Import cancelled — ${done.length} of ${files.length} pack(s) completed and kept. Import again to finish the rest (already-installed packs are skipped instantly).`, 10000);
   if (done.length) new Notice("Imported " + done.length + " pack(s):\n• " + done.join("\n• "), 10000);
   if (failed.length) new Notice("Skipped " + failed.length + " file(s):\n• " + failed.join("\n• "), 10000);
   return done.length + failed.length;
@@ -516,12 +527,15 @@ function pickPacksMulti(files, title) {
     m.open();
   });
 }
-// Full-panel progress overlay shown while packs import. It BLOCKS every control
-// (imports must finish before the library is used — caches reload at the end),
-// and shows two bars: overall packs and the current pack's figures. All DOM work
-// is defensive so a headless/mocked environment degrades to a silent no-op.
+// Progress overlay shown while packs import. It covers (and so LOCKS) the
+// SECTION the import was started from — Characters for character packs, FX
+// callouts for FX packs — with two bars: overall packs and the current pack's
+// figures, plus a Cancel button. Cancelling stops between figures/packs;
+// packs that already finished are kept. All DOM work is defensive so a
+// headless/mocked environment degrades to a silent no-op.
 function createImportProgress(hostEl) {
-  let ov = null, bar1 = null, bar2 = null, l1 = null, l2 = null;
+  let ov = null, bar1 = null, bar2 = null, l1 = null, l2 = null, cancelBtn = null, prevMinH = null;
+  const api = { cancelled: false };
   const mkBar = (parent) => {
     const outer = parent.createDiv();
     outer.style.cssText = "width:88%;max-width:340px;height:8px;border-radius:4px;background:var(--background-modifier-border);overflow:hidden";
@@ -530,7 +544,11 @@ function createImportProgress(hostEl) {
     return inner;
   };
   try {
-    if (hostEl && hostEl.style && !hostEl.style.position) hostEl.style.position = "relative";
+    if (hostEl && hostEl.style) {
+      if (!hostEl.style.position) hostEl.style.position = "relative";
+      prevMinH = hostEl.style.minHeight;
+      hostEl.style.minHeight = "190px";          // room for the progress UI in short sections
+    }
     ov = hostEl.createDiv();
     ov.style.cssText = "position:absolute;inset:0;z-index:50;background:var(--background-primary);opacity:0.97;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:18px;text-align:center";
     ov.createEl("div", { text: "Importing packs…" }).style.cssText = "font-weight:600;font-size:0.95em";
@@ -538,30 +556,36 @@ function createImportProgress(hostEl) {
     bar1 = mkBar(ov);
     l2 = ov.createEl("div", { text: "" }); l2.style.cssText = "font-size:0.78em;color:var(--text-muted)";
     bar2 = mkBar(ov);
-    ov.createEl("div", { text: "The panel is locked until the import finishes." }).style.cssText = "font-size:0.7em;color:var(--text-faint);margin-top:6px";
+    cancelBtn = ov.createEl("button", { text: "✕ Cancel import" });
+    cancelBtn.style.cssText = "margin-top:6px;font-size:0.75em;padding:3px 12px;border-radius:5px;cursor:pointer;border:1px solid var(--background-modifier-border);background:var(--background-secondary)";
+    makeActivatable(cancelBtn, () => {
+      api.cancelled = true;
+      try { cancelBtn.setText("Cancelling…"); cancelBtn.style.opacity = "0.6"; cancelBtn.style.pointerEvents = "none"; } catch (e) { /* headless */ }
+    });
+    ov.createEl("div", { text: "This section is locked until the import finishes." }).style.cssText = "font-size:0.7em;color:var(--text-faint)";
   } catch (e) { ov = null; }
   const pct = (d, t) => (t > 0 ? Math.max(0, Math.min(100, Math.round((d / t) * 100))) : 0);
-  return {
-    pack(i, n, name) {
-      try {
-        if (l1) l1.setText(`Pack ${i} of ${n} — ${name}`);
-        if (bar1) bar1.style.width = pct(i - 1, n) + "%";
-        if (l2) l2.setText("Reading pack file…");
-        if (bar2) bar2.style.width = "0%";
-      } catch (e) { /* headless */ }
-    },
-    figures(done, total) {
-      if (done % 25 !== 0 && done !== total) return;   // throttle DOM updates
-      try {
-        if (l2) l2.setText(`Figures ${done} / ${total}`);
-        if (bar2) bar2.style.width = pct(done, total) + "%";
-      } catch (e) { /* headless */ }
-    },
-    packDone(i, n) { try { if (bar1) bar1.style.width = pct(i, n) + "%"; if (bar2) bar2.style.width = "100%"; } catch (e) { /* headless */ } },
-    done() {
-      try { if (ov && ov.remove) ov.remove(); else if (ov && ov.parentNode) ov.parentNode.removeChild(ov); } catch (e) { /* gone */ }
-    },
+  api.pack = (i, n, name) => {
+    try {
+      if (l1) l1.setText(`Pack ${i} of ${n} — ${name}`);
+      if (bar1) bar1.style.width = pct(i - 1, n) + "%";
+      if (l2) l2.setText("Reading pack file…");
+      if (bar2) bar2.style.width = "0%";
+    } catch (e) { /* headless */ }
   };
+  api.figures = (done, total) => {
+    if (done % 25 !== 0 && done !== total) return;   // throttle DOM updates
+    try {
+      if (l2) l2.setText(`Figures ${done} / ${total}`);
+      if (bar2) bar2.style.width = pct(done, total) + "%";
+    } catch (e) { /* headless */ }
+  };
+  api.packDone = (i, n) => { try { if (bar1) bar1.style.width = pct(i, n) + "%"; if (bar2) bar2.style.width = "100%"; } catch (e) { /* headless */ } };
+  api.done = () => {
+    try { if (hostEl && hostEl.style && prevMinH != null) hostEl.style.minHeight = prevMinH; } catch (e) { /* headless */ }
+    try { if (ov && ov.remove) ov.remove(); else if (ov && ov.parentNode) ov.parentNode.removeChild(ov); } catch (e) { /* gone */ }
+  };
+  return api;
 }
 
 // --- pack provenance → website product (picker filter sections) -------------
@@ -610,36 +634,43 @@ function packProductLabel(product) {
   return prettyId(product);
 }
 
+let _importActive = false;   // one import at a time — the other section stays usable but can't start a second import
 // Shared import-button flow: list packs → multi-select (checkboxes) → install
 // every selected pack. Single pack skips straight to a confirm suggester; if the
 // Modal API is unavailable the suggester fallback offers one-or-ALL.
-// `makeProgress` builds the panel-locking overlay once files are actually chosen.
+// `makeProgress` builds the section-locking overlay once files are actually chosen.
 // Returns true when at least one import was attempted (caller then repaints).
 async function importPacksFlow(placeholder, makeProgress) {
-  const files = await listStrippackFiles();
-  if (!files.length) {
-    new Notice("No .strippack files found in your Excalidraw scripts folder (or Scripts/Downloaded). Unzip the product download, copy the .strippack there with Finder/Explorer (drag-dropping onto Obsidian silently ignores it), then retry.", 9000);
-    return false;
-  }
-  const base = (x) => String(x).split("/").pop();
-  const runImport = async (targets) => {
-    const prog = makeProgress ? makeProgress() : null;
-    try { return (await importPackFiles(targets, prog)) > 0; }
-    finally { if (prog) prog.done(); }
-  };
-  if (files.length === 1) {
-    const one = await pickFromList(files, files.map(base), placeholder);
-    return one ? runImport([one]) : false;
-  }
-  const picked = await pickPacksMulti(files, placeholder);
-  if (picked === undefined) {                    // no Modal API — suggester with an "Import ALL" row
-    const ALL = "__import_all__";
-    const chosen = await pickFromList([ALL, ...files], [`⬇ Import ALL ${files.length} packs`, ...files.map(base)], placeholder);
-    if (!chosen) return false;
-    return runImport(chosen === ALL ? files : [chosen]);
-  }
-  if (!picked || !picked.length) return false;   // cancelled, or everything unchecked
-  return runImport(picked);
+  // Claim the import slot for the WHOLE flow (picker included) — otherwise two
+  // pickers opened side by side could both proceed to import.
+  if (_importActive) { new Notice("An import is already running — wait for it to finish (or cancel it) first."); return false; }
+  _importActive = true;
+  try {
+    const files = await listStrippackFiles();
+    if (!files.length) {
+      new Notice("No .strippack files found in your Excalidraw scripts folder (or Scripts/Downloaded). Unzip the product download, copy the .strippack there with Finder/Explorer (drag-dropping onto Obsidian silently ignores it), then retry.", 9000);
+      return false;
+    }
+    const base = (x) => String(x).split("/").pop();
+    const runImport = async (targets) => {
+      const prog = makeProgress ? makeProgress() : null;
+      try { return (await importPackFiles(targets, prog)) > 0; }
+      finally { if (prog) prog.done(); }
+    };
+    if (files.length === 1) {
+      const one = await pickFromList(files, files.map(base), placeholder);
+      return one ? await runImport([one]) : false;
+    }
+    const picked = await pickPacksMulti(files, placeholder);
+    if (picked === undefined) {                  // no Modal API — suggester with an "Import ALL" row
+      const ALL = "__import_all__";
+      const chosen = await pickFromList([ALL, ...files], [`⬇ Import ALL ${files.length} packs`, ...files.map(base)], placeholder);
+      if (!chosen) return false;
+      return await runImport(chosen === ALL ? files : [chosen]);
+    }
+    if (!picked || !picked.length) return false; // cancelled, or everything unchecked
+    return await runImport(picked);
+  } finally { _importActive = false; }
 }
 
 // Snapshot a vault file to a single rolling .import-backup sibling (bounded — one
@@ -1978,7 +2009,7 @@ function renderBuildPage(contentEl, tab, ctx) {
     addStoreBtn(rfxHead, "🛒 More packs");
     impFx.onclick = async () => {
       try {
-        if (await importPacksFlow("Pick an FX pack — or import all", () => createImportProgress(tab.contentEl))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
+        if (await importPacksFlow("Pick an FX pack — or import all", () => createImportProgress(fxWrap))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
       } catch (e) { console.error("Strip Director: FX import failed", e); new Notice("FX import failed — see console."); }
     };
     if (rfx.length) {
@@ -2063,7 +2094,7 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
     importBtn.title = "Install a .strippack character pack";
     importBtn.onclick = async () => {
       try {
-        if (await importPacksFlow("Pick a character pack — or import all", () => createImportProgress(tab.contentEl))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
+        if (await importPacksFlow("Pick a character pack — or import all", () => createImportProgress(sec))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
       } catch (e) {
         console.error("Strip Director: import failed", e);
         new Notice("Import failed — see console for details.");
