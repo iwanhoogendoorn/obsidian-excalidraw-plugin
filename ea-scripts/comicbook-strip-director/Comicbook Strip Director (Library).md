@@ -381,59 +381,12 @@ function _safePackRel(rel) {
   return s;
 }
 
-// Extract the first *.strippack found inside a ZIP (the shop delivers product
-// zips; buyers drop them in as-is). Minimal reader: EOCD → central directory →
-// local header; "stored" entries are sliced, "deflate" entries are inflated with
-// the runtime's DecompressionStream. Throws friendly errors for the UI.
-async function _extractStrippackFromZip(ab) {
-  const dv = new DataView(ab);
-  const u8 = new Uint8Array(ab);
-  let eocd = -1;
-  for (let i = u8.length - 22, stop = Math.max(0, u8.length - 65557); i >= stop; i--) {
-    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
-  }
-  if (eocd < 0) throw new Error("This file is not a readable ZIP archive.");
-  const count = dv.getUint16(eocd + 10, true);
-  let off = dv.getUint32(eocd + 16, true);
-  const entries = [];
-  for (let n = 0; n < count && off + 46 <= u8.length; n++) {
-    if (dv.getUint32(off, true) !== 0x02014b50) break;
-    const method = dv.getUint16(off + 10, true);
-    const csize = dv.getUint32(off + 20, true);
-    const nameLen = dv.getUint16(off + 28, true);
-    const extraLen = dv.getUint16(off + 30, true);
-    const cmtLen = dv.getUint16(off + 32, true);
-    const lho = dv.getUint32(off + 42, true);
-    const name = new TextDecoder().decode(u8.subarray(off + 46, off + 46 + nameLen));
-    entries.push({ name, method, csize, lho });
-    off += 46 + nameLen + extraLen + cmtLen;
-  }
-  const hit = entries.find((e) => e.name.toLowerCase().endsWith(".strippack") && !e.name.startsWith("__MACOSX"));
-  if (!hit) throw new Error("No .strippack found inside this ZIP.");
-  if (hit.csize === 0xFFFFFFFF || hit.lho === 0xFFFFFFFF) throw new Error("This ZIP is too large to read here — unzip it manually and import the .strippack.");
-  if (dv.getUint32(hit.lho, true) !== 0x04034b50) throw new Error("This ZIP looks corrupt — unzip it manually and import the .strippack.");
-  const nLen = dv.getUint16(hit.lho + 26, true);
-  const eLen = dv.getUint16(hit.lho + 28, true);
-  const dataStart = hit.lho + 30 + nLen + eLen;
-  const comp = u8.subarray(dataStart, dataStart + hit.csize);
-  if (hit.method === 0) return new TextDecoder().decode(comp);
-  if (hit.method === 8) {
-    if (typeof DecompressionStream === "undefined") throw new Error("This app version can't unzip — unzip the file manually and import the .strippack.");
-    const stream = new Blob([comp]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-    return new TextDecoder().decode(await new Response(stream).arrayBuffer());
-  }
-  throw new Error("Unsupported ZIP compression — unzip the file manually and import the .strippack.");
-}
-
-// Read + parse a pack from a vault path — a .strippack directly, or the first
-// .strippack inside a product .zip.
+// Read + parse a .strippack from a vault path. ZIPs are not accepted — the shop
+// delivers a zip AROUND the pack; the user unzips it and drops the .strippack in.
 async function _readPackAt(path) {
-  const ad = _vaultApp().vault.adapter;
-  if (String(path).toLowerCase().endsWith(".zip")) {
-    const ab = await ad.readBinary(path);
-    return JSON.parse(await _extractStrippackFromZip(ab));
-  }
-  return JSON.parse(await ad.read(path));
+  if (String(path).toLowerCase().endsWith(".zip"))
+    throw new Error("That's a ZIP archive — unzip it first, then put the .strippack in your Excalidraw scripts folder and import again.");
+  return JSON.parse(await _vaultApp().vault.adapter.read(path));
 }
 
 // Decode a pack PNG payload and verify the PNG signature — returns the bytes, or
@@ -447,36 +400,29 @@ function _decodePng(dataUri) {
   return null;
 }
 
-// Discover *.strippack files the user could import. NOTE: Obsidian does not index
-// unknown extensions, so vault.getFiles() usually can't see .strippack — we walk the
-// filesystem adapter instead. The scripts folder tree and the data folder are seeded
-// first (guaranteed coverage: scripts root, Downloaded/, the bundle, product
-// subfolders), then the rest of the vault best-effort under a folder budget.
+// Discover *.strippack files the user could import — ONLY inside the Excalidraw
+// scripts folder tree (root, Downloaded/, the data folder, product subfolders).
+// NOTE: Obsidian does not index unknown extensions, so vault.getFiles() can't see
+// .strippack — we walk the filesystem adapter instead. Deliberately NOT the whole
+// vault: packs live with the script, and a vault-wide scan surfaced unrelated files.
 async function listStrippackFiles() {
   const appRef = _vaultApp();
   if (!appRef || !appRef.vault || !appRef.vault.adapter) return [];
   const adapter = appRef.vault.adapter;
   const hits = new Set();
-  try {
-    (appRef.vault.getFiles ? appRef.vault.getFiles() : []).forEach((f) => {
-      const lp = String(f.path).toLowerCase();
-      if (lp.endsWith(".strippack") || lp.endsWith(".zip")) hits.add(f.path);
-    });
-  } catch (e) { /* index unavailable — the adapter walk below covers it */ }
-  const queue = [_scriptsRoot(), _aiDir(), "Strip Packs", "", "/"];
+  const queue = [_scriptsRoot()];
   const seenDirs = new Set();
-  let budget = 400;                              // folder cap so huge vaults stay snappy
+  let budget = 120;                              // folder cap so a huge scripts tree stays snappy
   while (queue.length && budget-- > 0) {
     const d = queue.shift();
-    const key = d || "/";
-    if (seenDirs.has(key)) continue;
-    seenDirs.add(key);
+    if (!d || seenDirs.has(d)) continue;
+    seenDirs.add(d);
     let listing;
     try {
-      if (d && d !== "/" && !(await adapter.exists(d))) continue;
+      if (!(await adapter.exists(d))) continue;
       listing = await adapter.list(d);
     } catch (e) { continue; }
-    for (const f of (listing.files || [])) { const lf = String(f).toLowerCase(); if (lf.endsWith(".strippack") || lf.endsWith(".zip")) hits.add(f); }
+    for (const f of (listing.files || [])) { if (String(f).toLowerCase().endsWith(".strippack")) hits.add(f); }
     for (const sub of (listing.folders || [])) {
       const base = String(sub).split("/").pop();
       if (base === ".obsidian" || base === ".trash" || base === ".git" || base === "node_modules") continue;
@@ -1809,7 +1755,7 @@ function renderBuildPage(contentEl, tab, ctx) {
     impFx.onclick = async () => {
       try {
         const files = await listStrippackFiles();
-        if (!files.length) { new Notice("No pack files found. Copy the .strippack — or the product .zip you downloaded — with Finder/Explorer into your Excalidraw scripts folder (drag-dropping onto Obsidian silently ignores them), then retry.", 9000); return; }
+        if (!files.length) { new Notice("No .strippack files found in your Excalidraw scripts folder. Unzip the product download, copy the .strippack there with Finder/Explorer (drag-dropping onto Obsidian silently ignores it), then retry.", 9000); return; }
         const chosen = await pickFromList(files, files.map((p) => p.split("/").pop()), "Pick a Comic FX pack");
         if (!chosen) return;
         let pk;
@@ -1906,7 +1852,7 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
       try {
         const files = await listStrippackFiles();
         if (!files.length) {
-          new Notice("No pack files found. Copy the .strippack — or the product .zip you downloaded — with Finder/Explorer into your Excalidraw scripts folder (drag-dropping onto Obsidian silently ignores them), then try again.", 9000);
+          new Notice("No .strippack files found in your Excalidraw scripts folder. Unzip the product download, copy the .strippack there with Finder/Explorer (drag-dropping onto Obsidian silently ignores it), then try again.", 9000);
           return;
         }
         const labels = files.map((p) => p.split("/").pop());

@@ -96,11 +96,11 @@ Everything the script draws is tagged `customData.stripDirector`; it never modif
   standalone SVG + PNG, for use in *other* tools (Miro, Google Drawings, Figma, …).
   The script itself has all 30 built in.
 - **Add-on packs** — get them at [comicstripdirector.com](https://comicstripdirector.com/),
-  copy the downloaded **product `.zip` as-is** (no unzipping needed) or the
-  `.strippack` into your vault **with Finder / Explorer** (drag-dropping onto the
-  Obsidian window silently ignores unknown file types) — the scripts folder is a
-  good spot, but anywhere in the vault works — then use **⬇ Import pack…** /
-  **⬇ Import FX pack…** in the script panel.
+  **unzip the product download**, then copy the `.strippack` into your **Excalidraw
+  scripts folder** (or `Scripts/Downloaded/`) **with Finder / Explorer** — drag-dropping
+  onto the Obsidian window silently ignores unknown file types. Then use
+  **⬇ Import pack…** / **⬇ Import FX pack…** in the script panel. The import
+  picker only looks inside the scripts folder and only lists `.strippack` files.
 
 ## License
 
