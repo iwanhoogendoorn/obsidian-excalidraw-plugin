@@ -13,6 +13,50 @@ panel layouts, and 3 painted FX (POW! BOOM! ZAP!) install via the **⭐ Get the 
 starter pack** button inside the script. More characters, costumes, themes and the
 full FX set: **[comicstripdirector.com](https://comicstripdirector.com/)**.
 
+## Install & get started (TL;DR)
+
+1. **Get the script** — for the latest version, download **Comic Strip Director**
+   from the official Excalidraw script library (Obsidian → Excalidraw →
+   **script store**). *Manual alternative:* copy the two files from this folder —
+   `Comic Strip Director.md` and `Comic Strip Director.svg` — into
+   `<Excalidraw>/Scripts`.
+2. **Open Comic Strip Director** — open a drawing and run it from the Excalidraw
+   script menu.
+3. Click **⭐ Get the free starter pack** at the top of the panel. This creates the
+   required data folder AND downloads the free images from GitHub straight into the
+   script — Core Cast (8 characters, every action) plus the POW!/BOOM!/ZAP! FX,
+   with a progress bar.
+4. **Download additional packs** from **[comicstripdirector.com](https://comicstripdirector.com/)**.
+5. **Place the `.strippack` files** in `<Excalidraw>/Scripts` or
+   `<Excalidraw>/Scripts/Downloaded`.
+6. **Import them in the script** with the **⬇ Import pack…** / **⬇ Import FX pack…**
+   buttons — every `.strippack` in those two folders shows up, and you can import
+   them **all at once** (checkbox list). The script only accepts `.strippack` files
+   (no `.zip`s) to avoid confusion — unzip the product download first.
+7. **Start creating your comics!**
+
+> [!WARNING]
+> **Using Obsidian Sync?** Exclude the data folder
+> `<Excalidraw>/Scripts/Comic Strip Director` from sync (older installs:
+> `Comicbook Strip Director (Library)`). Imported packs contain a **lot** of
+> images — they can eat your Obsidian Sync space and make Obsidian slower.
+
+> [!TIP]
+> After importing a strip pack, **close and reopen Obsidian** so file indexing can
+> do a good job.
+
+### Extras
+
+- [`free/core-free.strippack`](free/core-free.strippack) /
+  [`free/comic-fx-free.strippack`](free/comic-fx-free.strippack) — the free tier as
+  plain pack files (what the ⭐ starter button downloads for you) — for offline /
+  manual installs: copy them into the scripts folder **with Finder / Explorer**
+  (drag-dropping onto the Obsidian window silently ignores unknown file types),
+  then **⬇ Import pack…**.
+- [`free/layouts-free.zip`](free/layouts-free.zip) — the 30 page templates as
+  standalone SVG + PNG, for use in *other* tools (Miro, Google Drawings, Figma, …).
+  The script itself has all 30 built in.
+
 ![Comic Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](screenshot.png)
 
 ## Meet the free Core Cast
@@ -60,50 +104,6 @@ are on the site too.
 
 Everything the script draws is tagged `customData.stripDirector`; it never modifies
 `comicCallout`.
-
-## Install & get started (TL;DR)
-
-1. **Get the script** — for the latest version, download **Comic Strip Director**
-   from the official Excalidraw script library (Obsidian → Excalidraw →
-   **script store**). *Manual alternative:* copy the two files from this folder —
-   `Comic Strip Director.md` and `Comic Strip Director.svg` — into
-   `<Excalidraw>/Scripts`.
-2. **Open Comic Strip Director** — open a drawing and run it from the Excalidraw
-   script menu.
-3. Click **⭐ Get the free starter pack** at the top of the panel. This creates the
-   required data folder AND downloads the free images from GitHub straight into the
-   script — Core Cast (8 characters, every action) plus the POW!/BOOM!/ZAP! FX,
-   with a progress bar.
-4. **Download additional packs** from **[comicstripdirector.com](https://comicstripdirector.com/)**.
-5. **Place the `.strippack` files** in `<Excalidraw>/Scripts` or
-   `<Excalidraw>/Scripts/Downloaded`.
-6. **Import them in the script** with the **⬇ Import pack…** / **⬇ Import FX pack…**
-   buttons — every `.strippack` in those two folders shows up, and you can import
-   them **all at once** (checkbox list). The script only accepts `.strippack` files
-   (no `.zip`s) to avoid confusion — unzip the product download first.
-7. **Start creating your comics!**
-
-> [!WARNING]
-> **Using Obsidian Sync?** Exclude the data folder
-> `<Excalidraw>/Scripts/Comic Strip Director` from sync (older installs:
-> `Comicbook Strip Director (Library)`). Imported packs contain a **lot** of
-> images — they can eat your Obsidian Sync space and make Obsidian slower.
-
-> [!TIP]
-> After importing a strip pack, **close and reopen Obsidian** so file indexing can
-> do a good job.
-
-### Extras
-
-- [`free/core-free.strippack`](free/core-free.strippack) /
-  [`free/comic-fx-free.strippack`](free/comic-fx-free.strippack) — the free tier as
-  plain pack files (what the ⭐ starter button downloads for you) — for offline /
-  manual installs: copy them into the scripts folder **with Finder / Explorer**
-  (drag-dropping onto the Obsidian window silently ignores unknown file types),
-  then **⬇ Import pack…**.
-- [`free/layouts-free.zip`](free/layouts-free.zip) — the 30 page templates as
-  standalone SVG + PNG, for use in *other* tools (Miro, Google Drawings, Figma, …).
-  The script itself has all 30 built in.
 
 ## License
 
