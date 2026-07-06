@@ -1561,7 +1561,18 @@ async function buildPanel(tab, ctx) {
   const __gen = (tab.__buildGen = (tab.__buildGen || 0) + 1);
   contentEl.empty();
 
-  // Header + ℹ️ About
+  renderHeader(contentEl);
+  renderStatusLine(contentEl);
+  renderBuildPage(contentEl, tab, ctx);
+  renderSplitSection(contentEl, ctx);
+  renderVectorLibrary(contentEl, ctx);
+  if (!(await renderCharacters(contentEl, tab, ctx, __gen))) return;
+  renderCalloutSection(contentEl, ctx);
+  renderFooter(contentEl);
+}
+
+// Title bar + the ℹ️ About toggle.
+function renderHeader(contentEl) {
   const header = contentEl.createDiv();
   header.style.display = "flex";
   header.style.alignItems = "center";
@@ -1581,11 +1592,13 @@ async function buildPanel(tab, ctx) {
   new ea.obsidian.ButtonComponent(header)
     .setIcon("info").setTooltip("About Strip Director")
     .onClick(() => { about.style.display = about.style.display === "none" ? "block" : "none"; });
+}
 
-  // Status line — a one-line inventory of what IS loaded (characters, costumes,
-  // actions, FX, optional hand-drawn vector library), expandable to the full
-  // name lists. Only warns when the data folder itself is missing — figures.json
-  // is an optional extra, never a warning.
+// Status line — a one-line inventory of what IS loaded (characters, costumes,
+// actions, FX, optional hand-drawn vector library), expandable to the full name
+// lists. Only warns when the data folder itself is missing — figures.json is an
+// optional extra, never a warning.
+function renderStatusLine(contentEl) {
   const fig = FIGURES;
   {
     const all = (AI_FIGURES && AI_FIGURES.figures) || [];
@@ -1666,10 +1679,12 @@ async function buildPanel(tab, ctx) {
       statusRow.setText(`No character data found — keep the "${BUNDLE_DIR_NAME}" data folder next to this script (in the scripts folder or its Downloaded/ subfolder), then reopen.`);
     }
   }
+}
 
-  // === Build a page — visual layout picker + generator + FX =================
-  // A small SVG thumbnail per layout (black = gutter, panels = paper). Click to
-  // drop the frames. Generator adds "any N panels" variants. FX places bursts.
+// Build a page — visual layout picker + generator + painted FX. A small SVG
+// thumbnail per layout (black = gutter, panels = paper); click to drop the frames.
+// The generator adds "any N panels" variants; the FX row stamps painted bursts.
+function renderBuildPage(contentEl, tab, ctx) {
   {
     const wPrefs = (ea.getScriptSettings && ea.getScriptSettings()) || {};
     const wSave = (patch) => { try { const s = ea.getScriptSettings() || {}; Object.assign(s, patch); ea.setScriptSettings(s); } catch (e) {} };
@@ -1812,44 +1827,13 @@ async function buildPanel(tab, ctx) {
 
   // (The old "Layout template" dropdown was removed — the visual layout picker in
   // "Build a page" supersedes it; its "Fit to view" moved next to the aspect toggle.)
+}
 
-  // Split a panel — mirrored / opposite orientations (each makes selectable regions)
-  {
-    const row = section(contentEl, "Split the selected panel", "Local action-beat cut — carve the panel you've selected into regions, each its own placement target");
-    SPLIT_OPTIONS.forEach((opt) => {
-      new ea.obsidian.ButtonComponent(row)
-        .setButtonText(opt.label)
-        .setTooltip(opt.tip)
-        .onClick(() => ctx.splitSelectedPanel && ctx.splitSelectedPanel(opt.id));
-    });
-  }
-
-  // Hand-drawn vector library (optional figures.json) — only shown when present,
-  // so fresh free-tier installs aren't confronted with a feature they don't have.
-  if (fig) {
-    const row = section(contentEl, "Hand-drawn vector library", "Your original figures.json set — pick a style, then a figure, to stamp into the selected panel");
-    new ea.obsidian.ButtonComponent(row)
-      .setButtonText("+ Figure").setCta()
-      .setTooltip("Choose style → figure, then stamp it into the selected panel")
-      .onClick(async () => {
-        const data = await ctx.ensureFigures();
-        if (!data) { new Notice(`No figure library found (${FIGURES_FILE}).`); return; }
-        const style = await pickFromList(data.styles, data.styles, "Style");
-        if (style === undefined) return;
-        const figs = figuresForStyle(style);
-        if (!figs.length) { new Notice(`No figures in style "${style}".`); return; }
-        const id = await pickFromList(figs.map((f) => f.id), figs.map((f) => f.name), `${style} — pick a figure`);
-        if (id === undefined) return;
-        const figure = figs.find((f) => f.id === id);
-        if (ctx.placeFigure) await ctx.placeFigure(figure);
-      });
-  }
-
-  // AI characters — guided builder: character -> role -> action, with previews.
-  // Replaces the old flat ~1000-thumbnail wall: you pick WHO first (one preview
-  // per character), then AS WHAT (that character in each role), then DOING WHAT
-  // (that character+role across the actions). The action click stamps it into the
-  // next empty slot. All combos are pre-generated, so previews resolve instantly.
+// AI characters — the guided who → costume → action picker, with pack import and
+// the Manage panel. Async (loads the roster + figures). Returns false if a newer
+// buildPanel run superseded this one mid-await (so the caller stops before
+// appending the callout/footer sections), true otherwise.
+async function renderCharacters(contentEl, tab, ctx, __gen) {
   {
     const aiData = await ctx.ensureAIFigures();
     const list = (aiData && aiData.figures) || [];
@@ -1857,7 +1841,7 @@ async function buildPanel(tab, ctx) {
     const rosterLegacy = (await ctx.ensureRosterLegacy()) || { characters: [], functions: [], actions: [] };
     // A newer buildPanel run superseded this one while we awaited — abort so we don't
     // append a second "AI characters" section over the newer render.
-    if (tab.__buildGen !== __gen) return;
+    if (tab.__buildGen !== __gen) return false;
     // Active library: "new" (default) or "legacy". Each swaps the roster shown AND
     // the cacheKey namespace used to resolve figures (legacy ids are "legacy-…").
     let AI_LIB = "new";
@@ -2171,43 +2155,77 @@ async function buildPanel(tab, ctx) {
       render();
     }
   }
+  return true;
+}
 
-  // Add callout zone
-  {
-    const row = section(contentEl, "Callout zone", "Reserve a speech/caption area — fill it with the Comicbook Callout Editor");
+// Split-the-selected-panel action buttons (diagonal / horizontal cuts).
+function renderSplitSection(contentEl, ctx) {
+  const row = section(contentEl, "Split the selected panel", "Local action-beat cut — carve the panel you've selected into regions, each its own placement target");
+  SPLIT_OPTIONS.forEach((opt) => {
     new ea.obsidian.ButtonComponent(row)
-      .setButtonText("+ Callout zone")
-      .setTooltip("Adds a reserved zone to the selected panel (run Comicbook Callout Editor to letter it)")
-      .onClick(() => ctx.addCalloutZone && ctx.addCalloutZone());
-    // Pointer to the companion script that letters the zones. Click resolves
-    // locally first (installed? → script store dialog) with GitHub as backup;
-    // the href stays on GitHub so right-click / copy-link still work.
-    const cel = row.createEl("a", { text: "Open Comicbook Callout Editor →" });
-    cel.style.cssText = "font-size:0.75em;font-weight:600;color:var(--interactive-accent);text-decoration:none;cursor:pointer;white-space:nowrap;margin-left:8px";
-    cel.title = "Runs the Comicbook Callout Editor if installed; otherwise opens the Excalidraw script store (GitHub page as backup)";
-    try { cel.setAttr("href", CALLOUT_EDITOR_URL); cel.setAttr("target", "_blank"); cel.setAttr("rel", "noopener"); } catch (e) {}
-    cel.onmouseenter = () => { cel.style.textDecoration = "underline"; };
-    cel.onmouseleave = () => { cel.style.textDecoration = "none"; };
-    cel.onclick = (e) => { try { e.preventDefault(); } catch (x) {} openCalloutEditor(); };
-  }
+      .setButtonText(opt.label)
+      .setTooltip(opt.tip)
+      .onClick(() => ctx.splitSelectedPanel && ctx.splitSelectedPanel(opt.id));
+  });
+}
 
-  // Footer — quiet store credit on the left, Close on the right.
-  {
-    const footer = contentEl.createDiv();
-    footer.style.marginTop = "14px";
-    footer.style.display = "flex";
-    footer.style.alignItems = "center";
-    footer.style.justifyContent = "space-between";
-    footer.style.gap = "10px";
-    addStoreLink(footer, "🛒 More characters, costumes & FX packs — comicstripdirector.com");
-    const closeWrap = footer.createDiv();
-    new ea.obsidian.ButtonComponent(closeWrap)
-      .setButtonText("Close")
-      .onClick(() => {
-        if (ea.sidepanelTab) ea.sidepanelTab.close();
-        ea.toggleSidepanelView();
-      });
-  }
+// Hand-drawn vector library (optional figures.json) — only shown when present, so
+// fresh free-tier installs aren't confronted with a feature they don't have.
+function renderVectorLibrary(contentEl, ctx) {
+  if (!FIGURES) return;
+  const row = section(contentEl, "Hand-drawn vector library", "Your original figures.json set — pick a style, then a figure, to stamp into the selected panel");
+  new ea.obsidian.ButtonComponent(row)
+    .setButtonText("+ Figure").setCta()
+    .setTooltip("Choose style → figure, then stamp it into the selected panel")
+    .onClick(async () => {
+      const data = await ctx.ensureFigures();
+      if (!data) { new Notice(`No figure library found (${FIGURES_FILE}).`); return; }
+      const style = await pickFromList(data.styles, data.styles, "Style");
+      if (style === undefined) return;
+      const figs = figuresForStyle(style);
+      if (!figs.length) { new Notice(`No figures in style "${style}".`); return; }
+      const id = await pickFromList(figs.map((f) => f.id), figs.map((f) => f.name), `${style} — pick a figure`);
+      if (id === undefined) return;
+      const figure = figs.find((f) => f.id === id);
+      if (ctx.placeFigure) await ctx.placeFigure(figure);
+    });
+}
+
+// Reserve-a-callout-zone control + a link that opens the companion Callout Editor.
+function renderCalloutSection(contentEl, ctx) {
+  const row = section(contentEl, "Callout zone", "Reserve a speech/caption area — fill it with the Comicbook Callout Editor");
+  new ea.obsidian.ButtonComponent(row)
+    .setButtonText("+ Callout zone")
+    .setTooltip("Adds a reserved zone to the selected panel (run Comicbook Callout Editor to letter it)")
+    .onClick(() => ctx.addCalloutZone && ctx.addCalloutZone());
+  // Pointer to the companion script that letters the zones. Click resolves locally
+  // first (installed? → script store dialog) with GitHub as backup; the href stays
+  // on GitHub so right-click / copy-link still work.
+  const cel = row.createEl("a", { text: "Open Comicbook Callout Editor →" });
+  cel.style.cssText = "font-size:0.75em;font-weight:600;color:var(--interactive-accent);text-decoration:none;cursor:pointer;white-space:nowrap;margin-left:8px";
+  cel.title = "Runs the Comicbook Callout Editor if installed; otherwise opens the Excalidraw script store (GitHub page as backup)";
+  try { cel.setAttr("href", CALLOUT_EDITOR_URL); cel.setAttr("target", "_blank"); cel.setAttr("rel", "noopener"); } catch (e) {}
+  cel.onmouseenter = () => { cel.style.textDecoration = "underline"; };
+  cel.onmouseleave = () => { cel.style.textDecoration = "none"; };
+  cel.onclick = (e) => { try { e.preventDefault(); } catch (x) {} openCalloutEditor(); };
+}
+
+// Footer — quiet store credit on the left, Close on the right.
+function renderFooter(contentEl) {
+  const footer = contentEl.createDiv();
+  footer.style.marginTop = "14px";
+  footer.style.display = "flex";
+  footer.style.alignItems = "center";
+  footer.style.justifyContent = "space-between";
+  footer.style.gap = "10px";
+  addStoreLink(footer, "🛒 More characters, costumes & FX packs — comicstripdirector.com");
+  const closeWrap = footer.createDiv();
+  new ea.obsidian.ButtonComponent(closeWrap)
+    .setButtonText("Close")
+    .onClick(() => {
+      if (ea.sidepanelTab) ea.sidepanelTab.close();
+      ea.toggleSidepanelView();
+    });
 }
 
 // ===========================================================================
