@@ -1842,7 +1842,7 @@ async function buildPanel(tab, ctx) {
   contentEl.empty();
 
   renderHeader(contentEl);
-  renderStatusLine(contentEl);
+  renderStatusLine(contentEl, tab, ctx);
   renderBuildPage(contentEl, tab, ctx);
   renderSplitSection(contentEl, ctx);
   renderVectorLibrary(contentEl, ctx);
@@ -1878,7 +1878,7 @@ function renderHeader(contentEl) {
 // actions, FX, optional hand-drawn vector library), expandable to the full name
 // lists. Only warns when the data folder itself is missing — figures.json is an
 // optional extra, never a warning.
-function renderStatusLine(contentEl) {
+function renderStatusLine(contentEl, tab, ctx) {
   const fig = FIGURES;
   {
     const all = (AI_FIGURES && AI_FIGURES.figures) || [];
@@ -1955,8 +1955,23 @@ function renderStatusLine(contentEl) {
       if (fig) addLine("Hand-drawn library", `${fig.figures.length} figures in ${fig.styles.length} styles`);
       makeActivatable(statusRow, () => { open = !open; detail.style.display = open ? "block" : "none"; paint(); });
     } else {
-      statusRow.style.color = "var(--text-warning)";
-      statusRow.setText(`No character data found — keep the "${BUNDLE_DIR_NAME}" data folder next to this script (in the scripts folder or its Downloaded/ subfolder), then reopen.`);
+      // Empty library — the FIRST thing a fresh two-file install sees. Put the
+      // one-click starter right here at the top instead of a stale warning.
+      statusRow.style.color = "var(--text-muted)";
+      statusRow.setText("No characters installed yet — grab the free starter cast:");
+      const getRow = contentEl.createDiv();
+      getRow.style.cssText = "display:flex;align-items:center;gap:8px;margin:6px 0 0;flex-wrap:wrap";
+      const freeBtn = getRow.createEl("button", { text: "⭐ Get the free starter pack" });
+      styleActionBtn(freeBtn);
+      freeBtn.style.background = "var(--interactive-accent)"; freeBtn.style.color = "var(--text-on-accent)"; freeBtn.style.borderColor = "var(--interactive-accent)";
+      freeBtn.title = "One click: downloads the free Core Cast + FX packs and imports them";
+      freeBtn.onclick = async () => {
+        try {
+          if (await downloadFreeStarterPacks(() => createImportProgressMulti([tab && tab.__csdCharSection, tab && tab.__csdFxSection]))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
+        } catch (e) { console.error("Strip Director: starter pack install failed", e); new Notice("Starter pack install failed — see console."); }
+      };
+      const hint = getRow.createEl("span", { text: "8 characters + FX, free — or drop a .strippack in your scripts folder and use ⬇ Import pack… below." });
+      hint.style.cssText = "font-size:0.72em;color:var(--text-faint)";
     }
   }
 }
