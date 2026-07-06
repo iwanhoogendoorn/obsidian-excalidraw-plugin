@@ -118,6 +118,7 @@ function tagStripDirector(ea, id, data) {
   if (data.panel !== undefined) payload.panel = data.panel;
   if (data.half !== undefined) payload.half = data.half;
   if (data.poly !== undefined) payload.poly = data.poly;
+  if (data.page !== undefined) payload.page = data.page;
   ids.forEach((i) => ea.addAppendUpdateCustomData(i, { stripDirector: payload }));
   return ids;
 }
@@ -149,7 +150,7 @@ function addCalloutZonePlaceholder(ea, rect, panelIndex, seedText) {
   ea.style.opacity = 100;
   ea.style.strokeStyle = "solid";
   ea.style.roundness = null;
-  tagStripDirector(ea, ids, { role: "calloutZone", panel: panelIndex });
+  tagStripDirector(ea, ids, { role: "calloutZone", panel: panelIndex, page: state.page || 0 });
   return ids;
 }
 // ===========================================================================
@@ -706,7 +707,7 @@ function findComposed(character, func, action, prefix) {
 //   into ea.elementsDict with fresh ids + remapped refs, scaled to fit, then
 //   the caller commits ONCE. Keeps seed/colours/roughness verbatim (his art).
 // ===========================================================================
-function stampFigure(ea, figure, panel, panelIdx, half) {
+function stampFigure(ea, figure, panel, panelIdx, half, page) {
   const s = Math.min(panel.w / figure.w, panel.h / figure.h) * FIT_PAD;
   const dx = panel.x + (panel.w - figure.w * s) / 2;
   const dy = panel.y + (panel.h - figure.h * s) / 2;
@@ -749,7 +750,7 @@ function stampFigure(ea, figure, panel, panelIdx, half) {
     ea.elementsDict[el.id] = el;
     newIds.push(el.id);
   }
-  const tag = { role: "figure", panel: panelIdx };
+  const tag = { role: "figure", panel: panelIdx, page: page === undefined ? (state.page || 0) : page };
   if (half !== undefined) tag.half = half;
   tagStripDirector(ea, newIds, tag);
   return newIds;
@@ -760,8 +761,9 @@ function stampFigure(ea, figure, panel, panelIdx, half) {
 // ===========================================================================
 const state = {
   layoutId: null,
-  panels: [],            // [{rect, index, frameIds, figureIds, zoneIds, split, subpanels}]
+  panels: [],            // [{rect, index, page, frameIds, figureIds, zoneIds, split, subpanels}]
   origin: { x: 0, y: 0 },
+  page: 0,               // current page id = the page's y-origin (0 for the first page)
   activePanel: 0,
 };
 
@@ -776,6 +778,7 @@ function getActivePanelIndex() {
     for (const el of sel) {
       const sd = el.customData && el.customData.stripDirector;
       if (!sd) continue;
+      if ((sd.page || 0) !== (state.page || 0)) continue;   // selection on another page — ignore
       if (sd.role === "panel" && typeof sd.index === "number") return clampIdx(sd.index);
       if (typeof sd.panel === "number") return clampIdx(sd.panel);
     }
@@ -831,12 +834,12 @@ function inscribedBox(poly) {
 // A plain panel is one slot; a split panel is one slot PER sub-region (its
 // inscribed box, already centred off the divider line). Occupancy is read live
 // from the canvas (occupiedSlots), so each +Figure advances to the next empty one.
-function slotKey(panelIdx, half) { return panelIdx + ":" + (half === undefined ? "_" : half); }
+function slotKey(page, panelIdx, half) { return (page || 0) + "/" + panelIdx + ":" + (half === undefined ? "_" : half); }
 function panelSlots(p) {
   if (p.subpanels && p.subpanels.length) {
-    return p.subpanels.map((s) => ({ panelIdx: p.index, half: s.half, region: s.box }));
+    return p.subpanels.map((s) => ({ page: p.page || 0, panelIdx: p.index, half: s.half, region: s.box }));
   }
-  return [{ panelIdx: p.index, half: undefined, region: p.rect }];
+  return [{ page: p.page || 0, panelIdx: p.index, half: undefined, region: p.rect }];
 }
 function allSlots() {
   const slots = [];
@@ -854,14 +857,14 @@ function occupiedSlots() {
     for (const el of els) {
       if (!el || el.isDeleted) continue;
       const sd = el.customData && el.customData.stripDirector;
-      if (sd && sd.role === "figure" && typeof sd.panel === "number") occ.add(slotKey(sd.panel, sd.half));
+      if (sd && sd.role === "figure" && typeof sd.panel === "number") occ.add(slotKey(sd.page, sd.panel, sd.half));
     }
   } catch (e) { /* view unavailable */ }
   return occ;
 }
 function nextEmptySlot() {
   const occ = occupiedSlots();
-  for (const s of allSlots()) if (!occ.has(slotKey(s.panelIdx, s.half))) return s;
+  for (const s of allSlots()) if (!occ.has(slotKey(s.page, s.panelIdx, s.half))) return s;
   return null;
 }
 
@@ -919,24 +922,27 @@ function getPlacementContext(opts) {
     for (const el of sel) {
       const sd = el.customData && el.customData.stripDirector;
       if (!sd) continue;
+      const selPage = sd.page || 0;
       if (sd.role === "subpanel" && typeof sd.panel === "number") {
-        const p = state.panels[clampIdx(sd.panel)];
-        const sub = p && p.subpanels && p.subpanels.find((s) => s.half === sd.half);
-        if (sub && (!forFigure || !occ.has(slotKey(p.index, sd.half))))
-          return { panelIdx: p.index, half: sd.half, region: sub.box, explicit: true };
+        // The selected element itself carries its geometry — works across pages.
+        const region = { x: el.x, y: el.y, w: el.width, h: el.height };
+        if (!forFigure || !occ.has(slotKey(selPage, sd.panel, sd.half)))
+          return { page: selPage, panelIdx: sd.panel, half: sd.half, region, explicit: true };
       }
       // An explicitly selected panel outline targets that panel (its first empty
       // region when split). For figures a full panel falls through to auto-advance.
       if (sd.role === "panel" && typeof sd.index === "number") {
-        const p = state.panels[clampIdx(sd.index)];
-        if (!p) continue;
-        if (p.subpanels && p.subpanels.length) {
+        const p = state.panels.find((x) => x.index === sd.index && (x.page || 0) === selPage);
+        if (p && p.subpanels && p.subpanels.length) {
           const sub = forFigure
-            ? p.subpanels.find((s) => !occ.has(slotKey(p.index, s.half)))
+            ? p.subpanels.find((s) => !occ.has(slotKey(selPage, p.index, s.half)))
             : p.subpanels[0];
-          if (sub) return { panelIdx: p.index, half: sub.half, region: sub.box, explicit: true };
-        } else if (!forFigure || !occ.has(slotKey(p.index, undefined))) {
-          return { panelIdx: p.index, half: undefined, region: p.rect, explicit: true };
+          if (sub) return { page: selPage, panelIdx: p.index, half: sub.half, region: sub.box, explicit: true };
+        } else if (!forFigure || !occ.has(slotKey(selPage, sd.index, undefined))) {
+          // Even when the panel isn't in in-memory state (other page after reload),
+          // the element carries its own geometry.
+          const region = (p && p.rect) || ((sd.poly && sd.poly.length >= 3) ? panelPlacementBox(sd.poly) : { x: el.x, y: el.y, w: el.width, h: el.height });
+          return { page: selPage, panelIdx: sd.index, half: undefined, region, explicit: true };
         }
       }
     }
@@ -945,18 +951,18 @@ function getPlacementContext(opts) {
   // 2. Figures: auto-advance to the next empty slot (don't overwrite).
   if (forFigure) {
     const slot = nextEmptySlot();
-    return slot ? { panelIdx: slot.panelIdx, half: slot.half, region: slot.region, auto: true } : null;
+    return slot ? { page: slot.page, panelIdx: slot.panelIdx, half: slot.half, region: slot.region, auto: true } : null;
   }
 
   // 3. Callout zones / default: the active panel (first region if split).
   const idx = getActivePanelIndex();
-  const panel = state.panels[idx];
+  const panel = state.panels.find((x) => x.index === idx) || state.panels[idx];
   if (!panel) return null;
   if (panel.subpanels && panel.subpanels.length) {
     const sub = panel.subpanels[0]; // split panel, no half chosen -> default to first
-    return { panelIdx: idx, half: sub.half, region: sub.box, defaulted: true };
+    return { page: panel.page || 0, panelIdx: idx, half: sub.half, region: sub.box, defaulted: true };
   }
-  return { panelIdx: idx, half: undefined, region: panel.rect };
+  return { page: panel.page || 0, panelIdx: idx, half: undefined, region: panel.rect };
 }
 
 // Commit the EA workbench once. `onTop` puts figures above the panel frames.
@@ -1095,6 +1101,7 @@ async function buildStripFromLayout(layout, asp) {
   state.layoutId = layout.id;
   state.origin = nextPageOrigin();
   const area = catalogArea(asp || layout.asp);
+  state.page = area.y;                     // page id = its y-origin (stacked pages differ)
   const panels = instantiateLayout(layout, area, 0.05);
   ea.style.strokeColor = COMIC_STROKE; ea.style.strokeWidth = COMIC_STROKE_WIDTH;
   ea.style.strokeStyle = "solid"; ea.style.roughness = COMIC_ROUGHNESS;
@@ -1103,8 +1110,8 @@ async function buildStripFromLayout(layout, asp) {
     const id = ea.addLine(pn.poly.concat([pn.poly[0]]));
     // Persist the panel polygon so a reload rebuilds the exact inscribed placement
     // box for angled panels (not just the bounding box).
-    tagStripDirector(ea, [id], { role: "panel", index: pn.index, poly: pn.poly });
-    state.panels.push({ rect: panelPlacementBox(pn.poly), poly: pn.poly, index: pn.index, frameIds: [id], figureIds: [], zoneIds: [], split: "none", subpanels: [] });
+    tagStripDirector(ea, [id], { role: "panel", index: pn.index, poly: pn.poly, page: state.page });
+    state.panels.push({ rect: panelPlacementBox(pn.poly), poly: pn.poly, index: pn.index, page: state.page, frameIds: [id], figureIds: [], zoneIds: [], split: "none", subpanels: [] });
   });
   state.activePanel = 0;
   await commit(false);
@@ -1161,7 +1168,7 @@ async function placeRasterFX(entry) {
     el.x = region.x + (region.w - el.width) / 2;
     el.y = region.y + (region.h - el.height) * 0.28;
   }
-  tagStripDirector(ea, [id], { role: "fx", panel: ai });
+  tagStripDirector(ea, [id], { role: "fx", panel: ai, page: state.page || 0 });
   await ea.addElementsToView(false, true, true);
   if (ea.clear) ea.clear();
   new Notice(`Placed ${entry.word || entry.name}.`);
@@ -1260,7 +1267,7 @@ async function splitSelectedPanel(mode) {
   panel.subpanels = [];
   polys.forEach((poly, hi) => {
     const id = ea.addLine(poly.concat([poly[0]]));
-    tagStripDirector(ea, [id], { role: "subpanel", panel: idx, half: hi });
+    tagStripDirector(ea, [id], { role: "subpanel", panel: idx, half: hi, page: panel.page || 0 });
     panel.frameIds.push(id);
     panel.subpanels.push({ poly, half: hi, box: inscribedBox(poly) });
   });
@@ -1272,8 +1279,8 @@ async function splitSelectedPanel(mode) {
 async function addCalloutZone() {
   const pc = getPlacementContext();
   if (!pc) { new Notice("Build a strip and select a panel first."); return; }
-  const ids = addCalloutZonePlaceholder(ea, pc.region, pc.panelIdx, "");
-  if (pc.half !== undefined) tagStripDirector(ea, ids, { role: "calloutZone", panel: pc.panelIdx, half: pc.half });
+  const ids = addCalloutZonePlaceholder(ea, pc.region, pc.panelIdx, "", pc.page);
+  if (pc.half !== undefined) tagStripDirector(ea, ids, { role: "calloutZone", panel: pc.panelIdx, half: pc.half, page: pc.page || 0 });
   const panel = state.panels[pc.panelIdx];
   if (panel) panel.zoneIds.push(...ids);
   await commit(false);
@@ -1291,7 +1298,7 @@ async function placeFigure(figure) {
     return;
   }
   ea.clear();                                  // fresh workbench
-  const ids = stampFigure(ea, figure, figureBox(pc.region), pc.panelIdx, pc.half);
+  const ids = stampFigure(ea, figure, figureBox(pc.region), pc.panelIdx, pc.half, pc.page);
   await ea.addElementsToView(false, true, true); // one commit, figures on top
   if (ea.clear) ea.clear();
   const panel = state.panels[pc.panelIdx];
@@ -1316,7 +1323,7 @@ async function _preferSvgSibling(pngPath) {
 // Stamp an AI-composed figure (image element) into a placement box, scaled to fit.
 // EA owns the image id + fileId (binary embedded on commit) — no id/group remap
 // (unlike the vector clone path). Recipe per the ea-image notes.
-async function stampImageFigure(entry, box, panelIdx, half) {
+async function stampImageFigure(entry, box, panelIdx, half, page) {
   const path = await _preferSvgSibling(aiFigureImagePath(entry));
   // scale=false → keep natural size (we scale to fit below); anchor=false → a
   // normal, freely RESIZABLE image (anchored images are pinned to 100% and refuse resize).
@@ -1331,7 +1338,7 @@ async function stampImageFigure(entry, box, panelIdx, half) {
     el.x = box.x + (box.w - el.width) / 2;
     el.y = box.y + (box.h - el.height) / 2;
   }
-  const tag = { role: "figure", panel: panelIdx };
+  const tag = { role: "figure", panel: panelIdx, page: page === undefined ? (state.page || 0) : page };
   if (half !== undefined) tag.half = half;
   tagStripDirector(ea, [id], tag);
   return [id];
@@ -1350,7 +1357,7 @@ async function placeAIFigure(entry) {
   ea.clear();
   let ids;
   try {
-    ids = await stampImageFigure(entry, figureBox(pc.region), pc.panelIdx, pc.half);
+    ids = await stampImageFigure(entry, figureBox(pc.region), pc.panelIdx, pc.half, pc.page);
   } catch (e) {
     console.error("Comicbook Strip Director — AI figure stamp failed", e);
     new Notice(`Could not place "${entry.name}" — is its image in the AI Figures folder?`);
