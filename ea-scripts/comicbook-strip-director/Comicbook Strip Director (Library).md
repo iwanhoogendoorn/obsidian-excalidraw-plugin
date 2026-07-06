@@ -122,7 +122,7 @@ function tagStripDirector(ea, id, data) {
   ids.forEach((i) => ea.addAppendUpdateCustomData(i, { stripDirector: payload }));
   return ids;
 }
-function addCalloutZonePlaceholder(ea, rect, panelIndex, seedText) {
+function addCalloutZonePlaceholder(ea, rect, panelIndex, seedText, page) {
   const padX = rect.w * 0.1;
   const padTop = rect.h * 0.08;
   const zone = {
@@ -150,7 +150,7 @@ function addCalloutZonePlaceholder(ea, rect, panelIndex, seedText) {
   ea.style.opacity = 100;
   ea.style.strokeStyle = "solid";
   ea.style.roundness = null;
-  tagStripDirector(ea, ids, { role: "calloutZone", panel: panelIndex, page: state.page || 0 });
+  tagStripDirector(ea, ids, { role: "calloutZone", panel: panelIndex, page: page === undefined ? (state.page || 0) : page });
   return ids;
 }
 // ===========================================================================
@@ -772,6 +772,12 @@ function clampIdx(i) {
   if (!n) return 0;
   return Math.max(0, Math.min(n - 1, i));
 }
+// Look a panel up by its INDEX (array position only matches while the page is
+// contiguous — after a reload with a deleted outline the array has gaps).
+function panelByIndex(idx, page) {
+  return state.panels.find((x) => x.index === idx && (page === undefined || (x.page || 0) === (page || 0)))
+    || state.panels[idx] || null;
+}
 function getActivePanelIndex() {
   try {
     const sel = ea.getViewSelectedElements ? ea.getViewSelectedElements() : [];
@@ -956,7 +962,7 @@ function getPlacementContext(opts) {
 
   // 3. Callout zones / default: the active panel (first region if split).
   const idx = getActivePanelIndex();
-  const panel = state.panels.find((x) => x.index === idx) || state.panels[idx];
+  const panel = panelByIndex(idx);
   if (!panel) return null;
   if (panel.subpanels && panel.subpanels.length) {
     const sub = panel.subpanels[0]; // split panel, no half chosen -> default to first
@@ -1155,7 +1161,8 @@ async function placeRasterFX(entry) {
   const basePath = fxImagePath(entry);
   if (!basePath) { new Notice(`Could not place ${entry.word || entry.name || "FX"} — its image path is invalid.`); return; }
   const ai = getActivePanelIndex();
-  const region = (state.panels[ai] && state.panels[ai].rect) || { x: state.origin.x, y: state.origin.y, w: 460, h: 340 };
+  const p = panelByIndex(ai);
+  const region = (p && p.rect) || { x: state.origin.x, y: state.origin.y, w: 460, h: 340 };
   ea.clear();
   let id;
   try { const fxPath = await _preferSvgSibling(basePath); id = await ea.addImage(region.x, region.y, fxPath, false, false); }
@@ -1251,7 +1258,7 @@ async function importFXPack(pack) {
 async function splitSelectedPanel(mode) {
   if (mode === "none") { new Notice("Pick Diagonal or Triangle to split a panel."); return; }
   const idx = getActivePanelIndex();
-  const panel = state.panels[idx];
+  const panel = panelByIndex(idx);
   if (!panel) { new Notice("Build a strip and select a panel first."); return; }
   // Draw each resulting sub-region as its OWN closed, selectable outline tagged
   // role:"subpanel" so a figure / zone can be placed INSIDE one half (not the
@@ -1281,7 +1288,7 @@ async function addCalloutZone() {
   if (!pc) { new Notice("Build a strip and select a panel first."); return; }
   const ids = addCalloutZonePlaceholder(ea, pc.region, pc.panelIdx, "", pc.page);
   if (pc.half !== undefined) tagStripDirector(ea, ids, { role: "calloutZone", panel: pc.panelIdx, half: pc.half, page: pc.page || 0 });
-  const panel = state.panels[pc.panelIdx];
+  const panel = panelByIndex(pc.panelIdx, pc.page);
   if (panel) panel.zoneIds.push(...ids);
   await commit(false);
   new Notice("Reserved a callout zone — select it and run Comicbook Callout Editor to letter it.");
@@ -1301,7 +1308,7 @@ async function placeFigure(figure) {
   const ids = stampFigure(ea, figure, figureBox(pc.region), pc.panelIdx, pc.half, pc.page);
   await ea.addElementsToView(false, true, true); // one commit, figures on top
   if (ea.clear) ea.clear();
-  const panel = state.panels[pc.panelIdx];
+  const panel = panelByIndex(pc.panelIdx, pc.page);
   if (panel) panel.figureIds.push(...ids);
   const where = pc.half !== undefined ? `panel ${pc.panelIdx + 1}, region ${pc.half + 1}` : `panel ${pc.panelIdx + 1}`;
   new Notice(`Placed "${figure.name}" in ${where}.`);
@@ -1366,7 +1373,7 @@ async function placeAIFigure(entry) {
   }
   await ea.addElementsToView(false, true, true);
   if (ea.clear) ea.clear();
-  const panel = state.panels[pc.panelIdx];
+  const panel = panelByIndex(pc.panelIdx, pc.page);
   if (panel) panel.figureIds.push(...ids);
   const where = pc.half !== undefined ? `panel ${pc.panelIdx + 1}, region ${pc.half + 1}` : `panel ${pc.panelIdx + 1}`;
   new Notice(`Placed AI figure "${entry.name}" in ${where}.`);
