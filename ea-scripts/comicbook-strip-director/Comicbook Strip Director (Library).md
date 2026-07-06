@@ -588,6 +588,19 @@ function createImportProgress(hostEl) {
   return api;
 }
 
+// Lock SEVERAL sections at once during an import (characters + FX): one overlay
+// per section, every call fanned out, cancel from either overlay stops the run.
+function createImportProgressMulti(hosts) {
+  const kids = (hosts || []).filter(Boolean).map((h) => createImportProgress(h));
+  return {
+    get cancelled() { return kids.some((k) => k.cancelled); },
+    pack(i, n, name) { kids.forEach((k) => k.pack(i, n, name)); },
+    figures(done, total) { kids.forEach((k) => k.figures(done, total)); },
+    packDone(i, n) { kids.forEach((k) => k.packDone(i, n)); },
+    done() { kids.forEach((k) => k.done()); },
+  };
+}
+
 // --- pack provenance → website product (picker filter sections) -------------
 // Split packs stamp each figure with their PART id (e.g. "fantasy-wizard");
 // the website sells the parent PRODUCT ("Fantasy Pack"). This static catalog
@@ -1992,6 +2005,7 @@ function renderBuildPage(contentEl, tab, ctx) {
 
     // FX callouts — painted comic bursts (POW! ZAP! BAM! …) stamped into the panel.
     const fxWrap = wsec.createDiv();
+    tab.__csdFxSection = fxWrap;               // import lock target (locked together with Characters)
     fxWrap.style.margin = "10px 0 2px";
     const fxh = fxWrap.createEl("div", { text: "FX callouts" });
     fxh.style.fontWeight = "600"; fxh.style.fontSize = "0.82em"; fxh.style.margin = "0 0 4px";
@@ -2009,7 +2023,7 @@ function renderBuildPage(contentEl, tab, ctx) {
     addStoreBtn(rfxHead, "🛒 More packs");
     impFx.onclick = async () => {
       try {
-        if (await importPacksFlow("Pick an FX pack — or import all", () => createImportProgress(fxWrap))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
+        if (await importPacksFlow("Pick an FX pack — or import all", () => createImportProgressMulti([tab.__csdCharSection, tab.__csdFxSection]))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
       } catch (e) { console.error("Strip Director: FX import failed", e); new Notice("FX import failed — see console."); }
     };
     if (rfx.length) {
@@ -2061,6 +2075,7 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
     const hasAnyRoster = (rosterNew.characters || []).length || (rosterLegacy.characters || []).length;
 
     const sec = contentEl.createDiv();
+    tab.__csdCharSection = sec;                // import lock target (locked together with FX)
     sec.style.margin = "14px 0 0";
     sec.style.paddingTop = "10px";
     sec.style.borderTop = "1px solid var(--background-modifier-border)";
@@ -2094,7 +2109,7 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
     importBtn.title = "Install a .strippack character pack";
     importBtn.onclick = async () => {
       try {
-        if (await importPacksFlow("Pick a character pack — or import all", () => createImportProgress(sec))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
+        if (await importPacksFlow("Pick a character pack — or import all", () => createImportProgressMulti([tab.__csdCharSection, tab.__csdFxSection]))) { await reloadPackCaches(); await buildPanel(tab, ctx); }
       } catch (e) {
         console.error("Strip Director: import failed", e);
         new Notice("Import failed — see console for details.");
