@@ -1,8 +1,8 @@
 /*
 
-![](https://raw.githubusercontent.com/zsviczian/obsidian-excalidraw-plugin/master/images/scripts-comicbook-strip-director.jpg)
+![](https://raw.githubusercontent.com/zsviczian/obsidian-excalidraw-plugin/master/images/scripts-comic-strip-director.jpg)
 
-# Comicbook Strip Director
+# Comic Strip Director
 
 Turn the Excalidraw canvas into a comic-strip studio: pick a page layout, fill
 the panels with hand-drawn characters in any costume and pose, then punch it up
@@ -163,7 +163,9 @@ function _vaultApp() { return (ea.plugin && ea.plugin.app) || (typeof app !== "u
 // All companion data (vector figures, AI pngs, manifests, roster, anchors) lives
 // in a folder named exactly like this script, INSIDE the Scripts folder — so the
 // script and its data move / share as one portable bundle.
-const BUNDLE_DIR_NAME = "Comicbook Strip Director (Library)";
+const BUNDLE_DIR_NAME = "Comic Strip Director";
+// Data folders created under the script's previous name keep working.
+const LEGACY_BUNDLE_DIR_NAMES = ["Comicbook Strip Director (Library)"];
 // Where the data bundle lives. Resolved once at startup: normally in the scripts
 // folder root, but when this script is installed via the official script store it
 // runs from Scripts/Downloaded/ — so the data folder is honoured in EITHER place.
@@ -181,7 +183,8 @@ async function resolveBundleDir() {
     const appRef = _vaultApp();
     const ad = appRef && appRef.vault && appRef.vault.adapter;
     const root = _scriptsRoot();
-    for (const c of [root + "/" + BUNDLE_DIR_NAME, root + "/Downloaded/" + BUNDLE_DIR_NAME]) {
+    const names = [BUNDLE_DIR_NAME, ...LEGACY_BUNDLE_DIR_NAMES];
+    for (const nm of names) for (const c of [root + "/" + nm, root + "/Downloaded/" + nm]) {
       if (ad && (await ad.exists(c))) { _BUNDLE_DIR = c; return c; }
     }
   } catch (e) { /* fall through to default */ }
@@ -448,7 +451,7 @@ async function importPackFileAt(path, prog) {
     return `${res.name}: +${res.added} FX (${res.written} images)`;
   }
   if (fmt.startsWith("strippack/") || fmt.startsWith("strippack-fx/"))
-    throw new Error(base + ": needs a newer version of this script (" + fmt + ") — update Comicbook Strip Director.");
+    throw new Error(base + ": needs a newer version of this script (" + fmt + ") — update Comic Strip Director.");
   throw new Error(base + ": not a Strip Director pack.");
 }
 // Import a batch of .strippack files sequentially, with per-file progress and a
@@ -608,8 +611,8 @@ function createImportProgressMulti(hosts) {
 // idempotent re-import). The downloaded .strippacks land in the scripts folder
 // like any manually-dropped pack, so the manual route stays identical.
 const FREE_PACK_URLS = [
-  "https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comicbook-strip-director/free/core-free.strippack",
-  "https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comicbook-strip-director/free/comic-fx-free.strippack",
+  "https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/free/core-free.strippack",
+  "https://raw.githubusercontent.com/iwanhoogendoorn/obsidian-excalidraw-plugin/main/ea-scripts/comic-strip-director/free/comic-fx-free.strippack",
 ];
 const _FREE_MANUAL_HINT = "Get the packs manually instead: download them from the GitHub repo's free/ folder (or comicstripdirector.com), drop them in your Excalidraw scripts folder, then use ⬇ Import pack…";
 function _freeTierInstalled() {
@@ -807,7 +810,7 @@ async function installPack(pack, onProgress) {
   if (!adapter) throw new Error("No vault adapter available.");
   if (!pack || pack.format !== PACK_FORMAT) {
     const fmt = pack && String(pack.format || "");
-    if (fmt && fmt.startsWith("strippack/")) throw new Error("This pack uses a newer format (" + fmt + ") — update the Comicbook Strip Director script, then import again.");
+    if (fmt && fmt.startsWith("strippack/")) throw new Error("This pack uses a newer format (" + fmt + ") — update the Comic Strip Director script, then import again.");
     throw new Error("Not a Strip Director pack (expected " + PACK_FORMAT + ").");
   }
   const dir = _aiDir();
@@ -1450,7 +1453,7 @@ async function importFXPack(pack, onProgress) {
   if (!ad) throw new Error("No vault adapter.");
   if (!pack || pack.format !== "strippack-fx/v1") {
     const fmt = pack && String(pack.format || "");
-    if (fmt && fmt.startsWith("strippack-fx/")) throw new Error("This FX pack uses a newer format (" + fmt + ") — update the Comicbook Strip Director script, then import again.");
+    if (fmt && fmt.startsWith("strippack-fx/")) throw new Error("This FX pack uses a newer format (" + fmt + ") — update the Comic Strip Director script, then import again.");
     throw new Error("Not a Comic FX pack (strippack-fx/v1).");
   }
   const dir = _fxDir();
@@ -1632,7 +1635,7 @@ async function placeAIFigure(entry) {
   try {
     ids = await stampImageFigure(entry, figureBox(pc.region), pc.panelIdx, pc.half, pc.page);
   } catch (e) {
-    console.error("Comicbook Strip Director — AI figure stamp failed", e);
+    console.error("Comic Strip Director — AI figure stamp failed", e);
     new Notice(`Could not place "${entry.name}" — is its image in the AI Figures folder?`);
     if (ea.clear) ea.clear();
     return;
@@ -1672,7 +1675,7 @@ async function composeOrPlace(sel) {
 // SECTION E — UI
 // ===========================================================================
 const ABOUT = `
-**Comicbook Strip Director** turns the canvas into a comic-strip studio.
+**Comic Strip Director** turns the canvas into a comic-strip studio.
 
 - **Build a page** → pick a shape (landscape / portrait / square), then click a
   layout thumbnail — 30 templates from clean grids to angled gutters and splash
@@ -1811,7 +1814,7 @@ async function pickFromList(values, labels, placeholder) {
     if (typeof ea !== "undefined" && ea.suggester) return await ea.suggester(lbls, values, placeholder);
     if (typeof utils !== "undefined" && utils.suggester) return await utils.suggester(lbls, values, placeholder);
   } catch (e) {
-    console.error("Comicbook Strip Director: suggester failed", e);
+    console.error("Comic Strip Director: suggester failed", e);
   }
   return undefined;
 }

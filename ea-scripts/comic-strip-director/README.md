@@ -1,11 +1,11 @@
-# Comicbook Strip Director
+# Comic Strip Director
 
 An Excalidraw Script Engine script that turns the Obsidian + Excalidraw canvas into a
 comic-strip studio: drop a panel layout, fill the panels with hand-drawn characters in
 any costume and pose, then punch it up with painted sound-effect FX — no drawing
 skills required.
 
-![Comicbook Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](demo.gif)
+![Comic Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](demo.gif)
 
 
 **The free tier comes preinstalled**: the 8-character Core Cast (176 poses), all 30
@@ -13,7 +13,7 @@ panel layouts, and 3 painted FX (POW! BOOM! ZAP!) work out of the box — no imp
 no extra downloads. More characters, costumes, themes and the full FX set:
 **[comicstripdirector.com](https://comicstripdirector.com/)**.
 
-![Comicbook Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](screenshot.png)
+![Comic Strip Director in action — Mia (Superhero) placed in a panel, with the who → as-what → doing-what picker](screenshot.png)
 
 ## Meet the free Core Cast
 
@@ -75,14 +75,14 @@ Everything the script draws is tagged `customData.stripDirector`; it never modif
    ```
    Excalidraw/
    └── Scripts/                                      ← they go IN here
-       ├── Comicbook Strip Director (Library).md     ← the script
-       └── Comicbook Strip Director (Library).svg    ← toolbar icon (keep the basename)
+       ├── Comic Strip Director.md     ← the script
+       └── Comic Strip Director.svg    ← toolbar icon (keep the basename)
    ```
 
    (Installed via the Excalidraw **script store** instead? The script then lives in
    `Scripts/Downloaded/` — that works too.)
 
-3. Reopen your drawing (or reload Obsidian) and run **Comicbook Strip Director**
+3. Reopen your drawing (or reload Obsidian) and run **Comic Strip Director**
    from the Excalidraw script menu.
 4. In the panel, click **⭐ Get the free starter pack** — one click downloads the
    free Core Cast (8 characters, every action) plus the POW!/BOOM!/ZAP! FX and
