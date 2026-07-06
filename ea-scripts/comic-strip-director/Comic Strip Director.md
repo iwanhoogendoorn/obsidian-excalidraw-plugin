@@ -2520,16 +2520,50 @@ function renderCalloutSection(contentEl, ctx) {
     .setButtonText("+ Callout zone")
     .setTooltip("Adds a reserved zone to the selected panel (run Comicbook Callout Editor to letter it)")
     .onClick(() => ctx.addCalloutZone && ctx.addCalloutZone());
-  // Pointer to the companion script that letters the zones. Click resolves locally
-  // first (installed? → script store dialog) with GitHub as backup; the href stays
-  // on GitHub so right-click / copy-link still work.
-  const cel = row.createEl("a", { text: "Open Comicbook Callout Editor →" });
-  cel.style.cssText = "font-size:0.75em;font-weight:600;color:var(--interactive-accent);text-decoration:none;cursor:pointer;white-space:nowrap;margin-left:8px";
-  cel.title = "Runs the Comicbook Callout Editor if installed; otherwise opens the Excalidraw script store (GitHub page as backup)";
-  try { cel.setAttr("href", CALLOUT_EDITOR_URL); cel.setAttr("target", "_blank"); cel.setAttr("rel", "noopener"); } catch (e) {}
-  cel.onmouseenter = () => { cel.style.textDecoration = "underline"; };
-  cel.onmouseleave = () => { cel.style.textDecoration = "none"; };
-  cel.onclick = (e) => { try { e.preventDefault(); } catch (x) {} openCalloutEditor(); };
+  // Companion-script icon (same pattern the Callout Editor uses for THIS script):
+  // installed → the Callout Editor's own icon, click runs it; not installed →
+  // an ⓘ icon whose click shows a Script Recommendation dialog.
+  try {
+    const _iconHTML = (name, fallback) => { try { return ea.obsidian.getIcon(name).outerHTML; } catch (e) { return fallback; } };
+    const btn = row.createEl("button", { cls: "clickable-icon" });
+    btn.style.cssText = "margin-left:8px;padding:4px;background:transparent;box-shadow:none;border:none;cursor:pointer";
+    const appRef = _vaultApp();
+    const scriptsFolder = (((ea.plugin && ea.plugin.settings && ea.plugin.settings.scriptFolderPath) || "Excalidraw/Scripts").replace(/\/+$/, "")) + "/";
+    const f = (appRef.vault.getMarkdownFiles ? appRef.vault.getMarkdownFiles() : [])
+      .find((x) => x.name === "Comicbook Callout Editor.md" && x.path.startsWith(scriptsFolder));
+    const svgFile = (appRef.vault.getFiles ? appRef.vault.getFiles() : [])
+      .find((x) => x.name === "Comicbook Callout Editor.svg" && x.path.startsWith(scriptsFolder));
+    if (f) {
+      if (svgFile) {
+        appRef.vault.read(svgFile).then((svg) => {
+          btn.innerHTML = svg;
+          const el = btn.querySelector && btn.querySelector("svg");
+          if (el) { el.style.width = "24px"; el.style.height = "24px"; }
+        }).catch(() => { btn.innerHTML = _iconHTML("message-square", "💬"); });
+      } else {
+        btn.innerHTML = _iconHTML("message-square", "💬");
+      }
+      btn.title = "Open Comicbook Callout Editor";
+      btn.setAttribute("aria-label", "Open Comicbook Callout Editor");
+      btn.onclick = () => openCalloutEditor();
+    } else {
+      btn.innerHTML = _iconHTML("info", "ⓘ");
+      btn.title = "Comicbook Callout Editor recommended";
+      btn.setAttribute("aria-label", "Comicbook Callout Editor recommended");
+      btn.onclick = () => {
+        const modal = new ea.obsidian.Modal(appRef);
+        modal.onOpen = () => {
+          const c = modal.contentEl;
+          c.createEl("h3", { text: "Script Recommendation" });
+          c.createEl("p", { text: "For speech bubbles and captions, please install the 'Comicbook Callout Editor' script from the Excalidraw script store." });
+          const bc = c.createDiv({ attr: { style: "display: flex; justify-content: flex-end; margin-top: 20px;" } });
+          const ok = bc.createEl("button", { text: "OK", cls: "mod-cta" });
+          ok.onclick = () => modal.close();
+        };
+        modal.open();
+      };
+    }
+  } catch (e) { console.error("Comic Strip Director: callout companion icon failed", e); }
 }
 
 // Footer — quiet store credit on the left, Close on the right.
