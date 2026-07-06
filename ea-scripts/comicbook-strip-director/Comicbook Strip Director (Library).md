@@ -1765,7 +1765,19 @@ async function openCalloutEditor() {
       const scriptpath = (f.parent && f.parent.path + "/").split(scriptsFolder)[1] ?? "";
       const cmd = appRef.commands && appRef.commands.commands &&
         appRef.commands.commands[`obsidian-excalidraw-plugin:${scriptpath}${f.basename}`];
-      if (cmd && typeof cmd.checkCallback === "function") { cmd.checkCallback(false); return; }
+      if (cmd && typeof cmd.checkCallback === "function") {
+        // The command only fires when an Excalidraw view is the ACTIVE view —
+        // clicking a link in this side panel focuses the panel's leaf instead.
+        // Re-activate the drawing first, then invoke.
+        try {
+          if (ea.targetView && ea.targetView.leaf && appRef.workspace && appRef.workspace.setActiveLeaf) {
+            appRef.workspace.setActiveLeaf(ea.targetView.leaf, { focus: true });
+          }
+        } catch (e) { /* leaf activation unavailable */ }
+        if (cmd.checkCallback(false) !== false) return;
+        new Notice("Click into your Excalidraw drawing first, then try again — the Callout Editor runs on the active drawing.", 7000);
+        return;
+      }
       new Notice("Comicbook Callout Editor is installed — select a callout zone, then run it from the Excalidraw script menu.", 7000);
       return;
     }
