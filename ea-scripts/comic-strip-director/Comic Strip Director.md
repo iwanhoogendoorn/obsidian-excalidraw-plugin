@@ -1767,8 +1767,10 @@ function addStoreLink(parent, text) {
 // other button in the panel (only the colour differs, so it reads as a call-to-action).
 function addStoreBtn(parent, text) {
   const a = parent.createEl("a", { text: text || "Get more packs" });
+  // Shop-orange, deliberately NOT the accent colour — the store button must not
+  // compete with primary actions like the starter pack or the library toggle.
   a.style.cssText = "display:inline-flex;align-items:center;gap:5px;font-size:0.75em;font-weight:600;" +
-    "color:var(--text-on-accent);background:var(--interactive-accent);border:1px solid transparent;" +
+    "color:#fff;background:var(--color-orange, #d97a16);border:1px solid transparent;" +
     "padding:3px 10px;border-radius:5px;text-decoration:none;cursor:pointer;white-space:nowrap";
   a.onmouseenter = () => { a.style.filter = "brightness(1.08)"; };
   a.onmouseleave = () => { a.style.filter = "none"; };
