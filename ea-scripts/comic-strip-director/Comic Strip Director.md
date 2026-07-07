@@ -2152,8 +2152,6 @@ function renderBuildPage(contentEl, tab, ctx) {
     const rfx = (FX_FIGURES && FX_FIGURES.figures) || [];
     const rfxWrap = fxWrap.createDiv();
     const rfxHead = rfxWrap.createDiv(); rfxHead.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 5px";
-    const rfxTitle = rfxHead.createEl("span", { text: rfx.length ? `${rfx.length} effects` : "No effects yet" });
-    rfxTitle.style.cssText = "font-size:0.76em;color:var(--text-muted)";
     const impFx = rfxHead.createEl("button", { text: "⬇ Import FX pack…" });
     styleActionBtn(impFx);
     impFx.onclick = async () => {
