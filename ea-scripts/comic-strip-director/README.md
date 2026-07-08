@@ -96,7 +96,11 @@ are on the site too.
   shows only combinations from the packs you own, every tile with a real thumbnail,
   plus per-character show/hide (**⚙ Manage**).
 - **Pack import** — install `.strippack` character and FX add-on packs. Imports are
-  idempotent and de-duplicated, and index files are backed up before every merge.
+  idempotent and de-duplicated, each pack's images live in their own
+  `Packs/<pack>/` folder, and index files are backed up before every merge.
+- **Pack removal** — ⚙ Manage lists installed packs with a per-pack Remove:
+  figures and images the pack brought in are deleted (art shared with another
+  installed pack is kept); re-importing the `.strippack` restores it any time.
 - **Painted FX callouts** — POW! BOOM! ZAP! stamped straight into the selected panel,
   crisp SVG preferred automatically.
 - **Reserved callout zones** — composes with the
