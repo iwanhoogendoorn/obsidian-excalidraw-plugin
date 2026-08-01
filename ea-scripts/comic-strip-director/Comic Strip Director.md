@@ -16,7 +16,10 @@ with painted sound-effect FX — no drawing skills required.
   action-beat cut; each region is its own placement target.
 - **Characters** — pick **who → as what → doing what** from the character packs
   you've imported. The picker only shows combinations you actually own, with a
-  real thumbnail for every tile. Show/hide characters with **⚙ Manage**.
+  real thumbnail for every tile, and a **search box** filters characters,
+  costumes and actions at once. Show/hide characters with **⚙ Manage**.
+- **↔ Facing toggle** — stamp figures mirrored, so characters can face each
+  other across a panel.
 - **Character & FX packs** — install `.strippack` files with **Import pack…** /
   **Import FX pack…** (idempotent, backed-up merges). New characters, costumes
   and FX: [comicstripdirector.com](https://comicstripdirector.com/).
@@ -104,6 +107,10 @@ const STORE_URL = "https://comicstripdirector.com/";
 // The companion script that letters the reserved callout zones (speech bubbles etc.).
 const CALLOUT_EDITOR_URL = "https://github.com/zsviczian/obsidian-excalidraw-plugin/blob/master/ea-scripts/Comicbook%20Callout%20Editor.md";
 const FIT_PAD = 0.9;          // breathing room when scaling a figure into a panel
+// ↔ Facing toggle: while on, newly stamped figures (vector AND image) are
+// mirrored horizontally so characters can face each other. Session-scoped;
+// FX bursts and callout zones are never mirrored (lettering must stay readable).
+let FLIP_NEXT = false;
 
 // ===========================================================================
 // SECTION A — LAYOUT  (panel split, tagging, callout zones)
@@ -1160,11 +1167,21 @@ function stampFigure(ea, figure, panel, panelIdx, half, page) {
     if (src.startBinding) el.startBinding = { ...src.startBinding, elementId: remap(src.startBinding.elementId) };
     if (src.endBinding) el.endBinding = { ...src.endBinding, elementId: remap(src.endBinding.elementId) };
 
-    el.x = dx + src.x * s;
+    // ↔ Facing: mirror each element's box across the figure's vertical centre
+    // line (in source space, before scaling). Points mirror inside their own
+    // bbox; rotation runs the other way; text glyphs stay readable (only the
+    // box position mirrors, which is what you want for a flipped character).
+    const srcW = typeof src.width === "number" ? src.width : 0;
+    el.x = dx + (FLIP_NEXT ? (figure.w - src.x - srcW) : src.x) * s;
     el.y = dy + src.y * s;
     if (typeof src.width === "number") el.width = src.width * s;
     if (typeof src.height === "number") el.height = src.height * s;
-    if (Array.isArray(src.points)) el.points = src.points.map(([px, py]) => [px * s, py * s]);
+    if (Array.isArray(src.points) && src.points.length) {
+      let minPx = Infinity, maxPx = -Infinity;
+      if (FLIP_NEXT) for (const p of src.points) { if (p[0] < minPx) minPx = p[0]; if (p[0] > maxPx) maxPx = p[0]; }
+      el.points = src.points.map(([px, py]) => [(FLIP_NEXT ? (minPx + maxPx - px) : px) * s, py * s]);
+    }
+    if (FLIP_NEXT && typeof src.angle === "number" && src.angle) el.angle = (Math.PI * 2 - src.angle) % (Math.PI * 2);
     if (typeof src.fontSize === "number") el.fontSize = src.fontSize * s;
     if (typeof src.strokeWidth === "number") el.strokeWidth = Math.max(0.5, src.strokeWidth * s);
 
@@ -1303,31 +1320,43 @@ function nextEmptySlot() {
 function syncPanelsFromCanvas() {
   try {
     const els = ea.getViewElements ? ea.getViewElements() : [];
-    const byIndex = {};
+    const byKey = {};                          // "page/index" — stacked pages reuse indexes
     const panels = [];
     for (const el of els) {
       if (!el || el.isDeleted) continue;
       const sd = el.customData && el.customData.stripDirector;
-      if (sd && sd.role === "panel" && typeof sd.index === "number" && !byIndex[sd.index]) {
+      if (sd && sd.role === "panel" && typeof sd.index === "number") {
+        const page = sd.page || 0;
+        const key = page + "/" + sd.index;
+        if (byKey[key]) continue;
         // Prefer the stored polygon's inscribed box (angled panels); fall back to the
         // element's bounding box for older/rectangular panels.
         const rect = (sd.poly && sd.poly.length >= 3)
           ? Object.assign(panelPlacementBox(sd.poly), { index: sd.index })
           : { x: el.x, y: el.y, w: el.width, h: el.height, index: sd.index };
-        const p = { rect, poly: sd.poly || null, index: sd.index, frameIds: [el.id], figureIds: [], zoneIds: [], split: "none", subpanels: [] };
-        byIndex[sd.index] = p; panels.push(p);
+        const p = { rect, poly: sd.poly || null, index: sd.index, page, frameIds: [el.id], figureIds: [], zoneIds: [], split: "none", subpanels: [] };
+        byKey[key] = p; panels.push(p);
       }
     }
     for (const el of els) {
       if (!el || el.isDeleted) continue;
       const sd = el.customData && el.customData.stripDirector;
-      if (sd && sd.role === "subpanel" && typeof sd.panel === "number" && byIndex[sd.panel]) {
-        byIndex[sd.panel].subpanels.push({ half: sd.half, box: { x: el.x, y: el.y, w: el.width, h: el.height } });
-        byIndex[sd.panel].split = "manual";
+      if (sd && sd.role === "subpanel" && typeof sd.panel === "number") {
+        const host = byKey[(sd.page || 0) + "/" + sd.panel];
+        if (!host) continue;
+        // Angled sub-regions carry their polygon — rebuild the true inscribed
+        // placement box; older tags without one keep the element bounding box.
+        const box = (sd.poly && sd.poly.length >= 3) ? inscribedBox(sd.poly) : { x: el.x, y: el.y, w: el.width, h: el.height };
+        host.subpanels.push({ half: sd.half, poly: sd.poly || null, box });
+        host.split = "manual";
       }
     }
-    panels.sort((a, b) => a.index - b.index);
-    if (panels.length) state.panels = panels;
+    panels.sort((a, b) => (a.page - b.page) || (a.index - b.index));
+    if (panels.length) {
+      state.panels = panels;
+      // Restore the current page too: the latest-built (lowest-on-canvas) page.
+      state.page = panels[panels.length - 1].page;
+    }
     return panels.length;
   } catch (e) { return 0; }
 }
@@ -1352,7 +1381,11 @@ function getPlacementContext(opts) {
       const selPage = sd.page || 0;
       if (sd.role === "subpanel" && typeof sd.panel === "number") {
         // The selected element itself carries its geometry — works across pages.
-        const region = { x: el.x, y: el.y, w: el.width, h: el.height };
+        // Angled sub-regions store their polygon; use its inscribed box so the
+        // figure lands inside the wedge, not the (larger) bounding box.
+        const region = (sd.poly && sd.poly.length >= 3)
+          ? inscribedBox(sd.poly)
+          : { x: el.x, y: el.y, w: el.width, h: el.height };
         if (!forFigure || !occ.has(slotKey(selPage, sd.panel, sd.half)))
           return { page: selPage, panelIdx: sd.panel, half: sd.half, region, explicit: true };
       }
@@ -1404,12 +1437,14 @@ async function commit(onTop) {
 function fitToView(ids) {
   try {
     const api = ea.getExcalidrawAPI && ea.getExcalidrawAPI();
-    if (!api || !api.scrollToContent) return;
+    if (!api || (!api.setViewport && !api.scrollToContent)) return;
     const all = ea.getViewElements ? ea.getViewElements() : api.getSceneElements();
     let els = ids && ids.length ? all.filter((el) => ids.includes(el.id)) : null;
     if (!els || !els.length) els = all.filter((el) => el.customData && el.customData.stripDirector);
     if (!els || !els.length) return;
-    api.scrollToContent(els, { fitToContent: true, animate: true });
+    // Excalidraw >= 2.26.0 replaced scrollToContent with setViewport.
+    if (api.setViewport) api.setViewport({ target: els, fit: "scale-down", animation: true });
+    else api.scrollToContent(els, { fitToContent: true, animate: true });
   } catch (e) { console.error("Strip Director fit-to-view failed", e); }
 }
 
@@ -1491,17 +1526,39 @@ function instantiateLayout(layout, area, gutterFrac) {
     index,
   }));
 }
+// Axis-aligned 4-point rectangle test (TL,TR,BR,BL order, no rotation).
+function _isAxisRect(poly) {
+  return poly.length === 4 &&
+    poly[0][1] === poly[1][1] && poly[2][1] === poly[3][1] &&
+    poly[0][0] === poly[3][0] && poly[1][0] === poly[2][0];
+}
 // Placement box for a panel polygon: exact bbox for an axis-aligned rectangle,
 // inscribed box (fits inside) for angled/triangular panels.
 function panelPlacementBox(poly) {
-  const axis = poly.length === 4 &&
-    poly[0][1] === poly[1][1] && poly[2][1] === poly[3][1] &&
-    poly[0][0] === poly[3][0] && poly[1][0] === poly[2][0];
-  if (axis) {
+  if (_isAxisRect(poly)) {
     const xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]);
     return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
   }
   return inscribedBox(poly);
+}
+// Clip a convex polygon to one side of the infinite line A→B: keep the points
+// where keepSign · cross(B−A, P−A) ≥ 0, emitting the divider intersections, so
+// the two halves share the cut edge exactly. Used to split ANGLED panels along
+// their real borders (splitting the inscribed box would ignore the panel shape).
+function _clipHalfPlane(poly, A, B, keepSign) {
+  const side = (p) => ((B[0] - A[0]) * (p[1] - A[1]) - (B[1] - A[1]) * (p[0] - A[0])) * keepSign;
+  const EPS = 1e-9;
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const P = poly[i], Q = poly[(i + 1) % poly.length];
+    const sp = side(P), sq = side(Q);
+    if (sp >= -EPS) out.push(P);
+    if ((sp > EPS && sq < -EPS) || (sp < -EPS && sq > EPS)) {
+      const t = sp / (sp - sq);
+      out.push([P[0] + (Q[0] - P[0]) * t, P[1] + (Q[1] - P[1]) * t]);
+    }
+  }
+  return out;
 }
 // Parametric generator — any N panels → a few sensible layout variants.
 function factorPairs(n) { const o = []; for (let r = 1; r <= n; r++) if (n % r === 0) o.push([n / r, r]); return o; }
@@ -1581,9 +1638,11 @@ async function placeRasterFX(entry) {
   if (!entry) return;
   const basePath = fxImagePath(entry);
   if (!basePath) { new Notice(`Could not place ${entry.word || entry.name || "FX"} — its image path is invalid.`); return; }
-  const ai = getActivePanelIndex();
-  const p = panelByIndex(ai);
-  const region = (p && p.rect) || { x: state.origin.x, y: state.origin.y, w: 460, h: 340 };
+  // Resolve the target like every other placement — getPlacementContext also
+  // rehydrates state.panels after a script reload (a bare panelByIndex lookup
+  // used to drop the FX at the canvas origin in that case).
+  const pc = getPlacementContext();
+  const region = (pc && pc.region) || { x: state.origin.x, y: state.origin.y, w: 460, h: 340 };
   ea.clear();
   let id;
   try { const fxPath = await _preferSvgSibling(basePath); id = await ea.addImage(region.x, region.y, fxPath, false, false); }
@@ -1596,7 +1655,7 @@ async function placeRasterFX(entry) {
     el.x = region.x + (region.w - el.width) / 2;
     el.y = region.y + (region.h - el.height) * 0.28;
   }
-  tagStripDirector(ea, [id], { role: "fx", panel: ai, page: state.page || 0 });
+  tagStripDirector(ea, [id], { role: "fx", panel: pc ? pc.panelIdx : 0, page: pc ? (pc.page || 0) : (state.page || 0) });
   await ea.addElementsToView(false, true, true);
   if (ea.clear) ea.clear();
   new Notice(`Placed ${entry.word || entry.name}.`);
@@ -1692,7 +1751,21 @@ async function splitSelectedPanel(mode) {
   // role:"subpanel" so a figure / zone can be placed INSIDE one half (not the
   // parent rect). Polygon edges coincide with the panel border + the divider, so
   // at roughness 0 the overlap is invisible — it just looks like a split panel.
-  const polys = splitPanel(panel.rect, mode);
+  // Rectangular panels split exactly as before. ANGLED panels clip their real
+  // polygon along the divider — panel.rect is only the inscribed box there, and
+  // splitting that box drew sub-regions that ignored the panel borders.
+  let polys;
+  const angled = panel.poly && panel.poly.length >= 3 && !_isAxisRect(panel.poly);
+  if (angled && ["diag-back", "diag-fwd", "horizontal", "diagonal"].includes(mode)) {
+    const xs = panel.poly.map((p) => p[0]), ys = panel.poly.map((p) => p[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const A = mode === "horizontal" ? [minX, (minY + maxY) / 2] : mode === "diag-fwd" ? [maxX, minY] : [minX, minY];
+    const B = mode === "horizontal" ? [maxX, (minY + maxY) / 2] : mode === "diag-fwd" ? [minX, maxY] : [maxX, maxY];
+    polys = [_clipHalfPlane(panel.poly, A, B, 1), _clipHalfPlane(panel.poly, A, B, -1)].filter((p) => p.length >= 3);
+    if (polys.length < 2) { new Notice("This panel's shape can't be cut that way — try a different split."); return; }
+  } else {
+    polys = splitPanel(panel.rect, mode);
+  }
   ea.style.strokeColor = COMIC_STROKE;
   ea.style.strokeWidth = COMIC_STROKE_WIDTH;
   ea.style.strokeStyle = "solid";
@@ -1702,7 +1775,9 @@ async function splitSelectedPanel(mode) {
   panel.subpanels = [];
   polys.forEach((poly, hi) => {
     const id = ea.addLine(poly.concat([poly[0]]));
-    tagStripDirector(ea, [id], { role: "subpanel", panel: idx, half: hi, page: panel.page || 0 });
+    // Persist the sub-region polygon so a reload rebuilds the exact inscribed
+    // placement box (angled halves aren't rectangles).
+    tagStripDirector(ea, [id], { role: "subpanel", panel: idx, half: hi, page: panel.page || 0, poly });
     panel.frameIds.push(id);
     panel.subpanels.push({ poly, half: hi, box: inscribedBox(poly) });
   });
@@ -1772,6 +1847,7 @@ async function stampImageFigure(entry, box, panelIdx, half, page) {
     el.height = natH * s;
     el.x = box.x + (box.w - el.width) / 2;
     el.y = box.y + (box.h - el.height) / 2;
+    if (FLIP_NEXT) el.scale = [-1, 1];        // ↔ Facing: mirror the artwork
   }
   const tag = { role: "figure", panel: panelIdx, page: page === undefined ? (state.page || 0) : page };
   if (half !== undefined) tag.half = half;
@@ -1844,7 +1920,10 @@ const ABOUT = `
   each region becomes its own placement target.
 - **Characters** → pick **who** → **as what** (costume) → **doing what**
   (action). The picker shows only combinations from the packs you've imported,
-  each with a real preview. **⚙ Manage** shows/hides imported characters.
+  each with a real preview, and the **search box** filters characters, costumes
+  and actions at once. **⚙ Manage** shows/hides imported characters.
+- **↔ Facing toggle** → while on, newly placed figures are mirrored
+  horizontally — put two characters face to face.
 - **Import pack… / Import FX pack…** → install \`.strippack\` character or FX
   packs. Imports are safe: existing files are never overwritten, indexes are
   backed up first, and re-importing is a no-op.
@@ -1916,6 +1995,23 @@ function styleActionBtn(b, opts) {
   // fall back to the plain background on mouse-leave.
   b.onmouseenter = () => { b.style.background = hoverBg; };
   b.onmouseleave = () => { b.style.background = baseBg; };
+  return b;
+}
+
+// ↔ Facing toggle button. One shared FLIP_NEXT state; every section that shows
+// the toggle registers a repaint in ctx.flipRepaints (reset per buildPanel), so
+// flipping it in Characters also updates the copy in the vector library row.
+function addFlipToggle(parent, ctx) {
+  const b = parent.createEl("button", { text: "" });
+  b.title = "Mirror newly placed figures horizontally, so characters can face each other";
+  const paint = () => { styleActionBtn(b, { accent: FLIP_NEXT }); b.setText(FLIP_NEXT ? "↔ Facing: flipped" : "↔ Facing: normal"); };
+  paint();
+  if (ctx && Array.isArray(ctx.flipRepaints)) ctx.flipRepaints.push(paint);
+  b.onclick = () => {
+    FLIP_NEXT = !FLIP_NEXT;
+    const fns = (ctx && Array.isArray(ctx.flipRepaints)) ? ctx.flipRepaints : [paint];
+    fns.forEach((fn) => { try { fn(); } catch (e) { /* stale node */ } });
+  };
   return b;
 }
 
@@ -2023,6 +2119,7 @@ async function buildPanel(tab, ctx) {
   // and they race around the awaits below. Stamp each run; a run that finds a newer
   // generation aborts before appending async sections, so the panel renders exactly once.
   const __gen = (tab.__buildGen = (tab.__buildGen || 0) + 1);
+  ctx.flipRepaints = [];                       // fresh ↔ Facing toggle registry per rebuild
   contentEl.empty();
   // Responsive behaviour for any panel width: images scale, button rows wrap,
   // long names break instead of overflowing, buttons share one size.
@@ -2348,6 +2445,7 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
     hRow.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 2px";
     const h = hRow.createEl("div", { text: "Characters" });
     h.style.fontWeight = "600"; h.style.fontSize = "0.95em";
+    addFlipToggle(hRow, ctx);
     // Manage lives on the character header (it filters this section), not in the import
     // toolbar. Created here; wired to its panel further down.
     const manageBtn = hRow.createEl("button", { text: "⚙ Manage" });
@@ -2551,6 +2649,20 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
         repaintLib();
       }
 
+      // Search — one box filters characters, costumes and actions at once
+      // (matches figure fields AND roster display names, all terms must hit).
+      // Only shown once the library is big enough to need it.
+      let query = "";
+      if (list.length >= 12) {
+        const inp = sec.createEl("input");
+        inp.type = "search";
+        inp.placeholder = "Search characters, costumes, actions…";
+        inp.setAttribute("aria-label", "Search the character library");
+        inp.style.cssText = "width:100%;max-width:300px;margin:0 0 6px;padding:3px 9px;font-size:0.78em;" +
+          "border:1px solid var(--background-modifier-border);border-radius:5px;background:var(--background-primary);color:var(--text-normal)";
+        inp.oninput = () => { query = inp.value.trim().toLowerCase(); render(); };
+      }
+
       const stepWrap = sec.createDiv();
 
       function tile(parent, url, label, selected, onClick) {
@@ -2603,6 +2715,19 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
         // per combo, preferring non-legacy art for thumbnails.
         const hasLegacyRoster = ((rosterLegacy && rosterLegacy.characters) || []).length > 0;
         const inLib = (f) => !hasLegacyRoster || (AI_LIB === "legacy" ? f.lib === "legacy" : f.lib !== "legacy");
+        // Search matcher: every whitespace-separated term must match the figure's
+        // own fields or the roster display name of its character/costume/action.
+        const rosterNames = new Map();
+        for (const c of chars) if (c && c.id) rosterNames.set(c.id, String(c.name || "").toLowerCase());
+        for (const fn2 of funcs) if (fn2 && fn2.id) rosterNames.set(fn2.id, String(fn2.name || "").toLowerCase());
+        for (const a2 of acts) if (a2 && a2.id) rosterNames.set(a2.id, String(a2.label || a2.name || "").toLowerCase());
+        const terms = query ? query.split(/\s+/).filter(Boolean) : [];
+        const matchesQuery = (f) => {
+          if (!terms.length) return true;
+          const hay = aiSearchText(f) + " " + (rosterNames.get(f.character) || "") + " " +
+            (rosterNames.get(f.function) || "") + " " + (rosterNames.get(f.action) || "");
+          return terms.every((t) => hay.includes(t));
+        };
         const rank = (f) => (f.action === "present" ? 3 : f.action === "stand" ? 2 : f.action === "wave" ? 1 : 0) * 2 + (f.lib !== "legacy" ? 1 : 0);
         // PACK FILTER (step 0) — group figures by the website product they came
         // from (split parts collapse into their parent pack). Chips only appear
@@ -2616,9 +2741,9 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
           for (const pid of ids) out.add(packProductOf(pid, instProducts));
           return out;
         };
-        const packsHere = new Map();             // product → figure count (lib-filtered)
+        const packsHere = new Map();             // product → figure count (lib+search-filtered)
         for (const f of list) {
-          if (!inLib(f)) continue;
+          if (!inLib(f) || !matchesQuery(f)) continue;
           for (const prod of prodsOf(f)) packsHere.set(prod, (packsHere.get(prod) || 0) + 1);
         }
         if (selPack != null && !packsHere.has(selPack)) selPack = null;  // pack no longer present
@@ -2644,7 +2769,7 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
         const charSet = new Set(), charFuncs = new Map(), comboActs = new Map();
         const charRep = new Map(), comboRep = new Map(), comboFig = new Map();
         for (const f of list) {
-          if (!inLib(f)) continue;
+          if (!inLib(f) || !matchesQuery(f)) continue;
           if (selPack != null && !prodsOf(f).has(selPack)) continue;
           const ch = f.character || "", fn = f.function || "", key = ch + "|" + fn;
           charSet.add(ch);
@@ -2694,7 +2819,10 @@ async function renderCharacters(contentEl, tab, ctx, __gen) {
             selChar = ""; selFunc = null; savePrefs({ lastChar: "" }); render();
           });
         }
-        if (!g1.children.length) {
+        if (!g1.children.length && terms.length) {
+          const none = g1.createEl("div", { text: `No matches for “${query}” — clear the search to see everything.` });
+          none.style.cssText = "font-size:0.74em;color:var(--text-muted)";
+        } else if (!g1.children.length) {
           const disabledHere = charsAll.some((c) => charSet.has(c.id) && DISABLED.has(c.id));
           const none = g1.createEl("div", { text: disabledHere
             ? "Every imported character is hidden — open ⚙ Manage characters to show some."
@@ -2777,6 +2905,7 @@ function renderVectorLibrary(contentEl, ctx) {
       if (ctx.placeFigure) await ctx.placeFigure(figure);
     });
   if (figBC.buttonEl) styleActionBtn(figBC.buttonEl, { accent: true });
+  addFlipToggle(bar, ctx);
 }
 
 // Reserve-a-callout-zone control + a link that opens the companion Callout Editor.
